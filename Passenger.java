@@ -1,46 +1,55 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package AMS;
+
+
 public class Passenger extends Person {
     private String passportNumber;
     private String nationality;
-    private int frequentFlyerMiles;
     
-    // Static counter (Lect#3)
-    private static int totalPassengers = 0;
+
+public Passenger(String name, String email, String password, String phone, 
+                String passportNumber, String nationality) {
+    super(name, email, password, phone);
+    setPassportNumber(passportNumber);  
+    setNationality(nationality);        
+}
     
-    public Passenger(String id, String name, String email, String phone, 
-                     String passportNumber, String nationality) {
-        super(id, name, email, phone); // Inheritance - super keyword (Lect#4)
-        this.passportNumber = passportNumber;
-        this.nationality = nationality;
-        this.frequentFlyerMiles = 0;
-        totalPassengers++;
+    // Getters and setters
+    public String getPassportNumber() {
+        return passportNumber;
     }
     
-    // Static method (Lect#3)
-    public static int getTotalPassengers() {
-        return totalPassengers;
+    public void setPassportNumber(String passportNumber)
+    {
+        if (passportNumber == null || passportNumber.trim().isEmpty()) {
+            throw new IllegalArgumentException("Passport number cannot be empty");
+        }
+        String cleanPassport = passportNumber.trim().toUpperCase();
+        if (!cleanPassport.matches("[A-Z0-9]{8,9}")) {
+            throw new IllegalArgumentException("Passport number must be 8-9 alphanumeric characters");
+        }
+        this.passportNumber = cleanPassport;
     }
     
-    @Override
-    public String getRole() {
-        return "Passenger";
+    public String getNationality() {
+        return nationality;
     }
     
-    public void addMiles(int miles) {
-        this.frequentFlyerMiles += miles;
+    public void setNationality(String nationality)
+    {
+        if (nationality == null || nationality.trim().isEmpty()) {
+            throw new IllegalArgumentException("Nationality cannot be empty");
+        }
+        if (!nationality.matches("[a-zA-Z\\s]+")) {
+            throw new IllegalArgumentException("Nationality should contain only letters");
+        }
+        if (nationality.length() < 2 || nationality.length() > 30) {
+            throw new IllegalArgumentException("Nationality should be between 2 and 30 characters");
+        }
+        this.nationality = nationality.trim();
     }
-    
-    // Getters with encapsulation
-    public String getPassportNumber() { return passportNumber; }
-    public int getFrequentFlyerMiles() { return frequentFlyerMiles; }
     
     @Override
     public String toString() {
-        return super.toString() + ", Passport: " + passportNumber + 
-               ", Miles: " + frequentFlyerMiles;
+        return super.toString() + ", Passport: " + passportNumber + ", Nationality: " + nationality;
     }
 }
