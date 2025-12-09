@@ -1,191 +1,108 @@
--- -----------------------------------------------------
--- DATABASE
--- -----------------------------------------------------
-CREATE DATABASE IF NOT EXISTS airline_mgmt;
-USE airline_mgmt;
+-- 1. Create the Database
+CREATE DATABASE IF NOT EXISTS airline_management_system;
+USE airline_management_system;
 
--- -----------------------------------------------------
--- TABLE: Aircraft
--- -----------------------------------------------------
-CREATE TABLE Aircraft (
+-- 2. Aircraft Table 
+CREATE TABLE aircrafts (
     aircraft_id INT AUTO_INCREMENT PRIMARY KEY,
-    model VARCHAR(50),
-    capacity INT,
-    manufacture_year INT,
-    range_km INT
+    registration_number VARCHAR(20) NOT NULL UNIQUE,
+    model VARCHAR(50) NOT NULL,
+    manufacturer VARCHAR(50) NOT NULL,
+    capacity INT NOT NULL,
+    range_km DOUBLE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- -----------------------------------------------------
--- TABLE: Flight
--- -----------------------------------------------------
-CREATE TABLE Flight (
-    flight_id INT AUTO_INCREMENT PRIMARY KEY,
-    origin VARCHAR(50),
-    destination VARCHAR(50),
-    departure_time DATETIME,
-    arrival_time DATETIME,
-    aircraft_id INT,
-    FOREIGN KEY (aircraft_id) REFERENCES Aircraft(aircraft_id)
-);
-
--- -----------------------------------------------------
--- TABLE: Passenger
--- -----------------------------------------------------
-CREATE TABLE Passenger (
+-- 3. Passengers Table 
+CREATE TABLE passengers (
     passenger_id INT AUTO_INCREMENT PRIMARY KEY,
-    fname VARCHAR(50),
-    lname VARCHAR(50),
-    email VARCHAR(100),
-    phone VARCHAR(30),
-    passport_no VARCHAR(30),
-    nationality VARCHAR(50),
-    password VARCHAR(255)
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    passport_number VARCHAR(20) NOT NULL UNIQUE,
+    nationality VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- -----------------------------------------------------
--- TABLE: Pilot
--- -----------------------------------------------------
-CREATE TABLE Pilot (
-    pilot_id INT AUTO_INCREMENT PRIMARY KEY,
-    fname VARCHAR(50),
-    lname VARCHAR(50),
-    email VARCHAR(100),
-    phone VARCHAR(30),
-    salary DECIMAL(10,2),
-    license_no VARCHAR(50),
+-- 4. Employees Table 
+CREATE TABLE employees (
+    employee_id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_code VARCHAR(20) NOT NULL UNIQUE, 
+    employee_type ENUM('Pilot', 'Crew') NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    salary DOUBLE NOT NULL,
+    department VARCHAR(50) NOT NULL,
+    
+    -- Fields specific to Pilots (NULL if employee is Crew)
+    license_number VARCHAR(50) UNIQUE,
     flight_hours INT,
-    plane_type VARCHAR(50),
-    password VARCHAR(255)
+    
+    -- Fields specific to Crew (NULL if employee is Pilot)
+    position VARCHAR(50)
 );
 
--- -----------------------------------------------------
--- TABLE: CrewMember
--- -----------------------------------------------------
-CREATE TABLE CrewMember (
-    crew_id INT AUTO_INCREMENT PRIMARY KEY,
-    fname VARCHAR(50),
-    lname VARCHAR(50),
-    email VARCHAR(100),
-    phone VARCHAR(30),
-    salary DECIMAL(10,2),
-    position VARCHAR(50),
-    language_spoken VARCHAR(50),
-    password VARCHAR(255)
+-- 5. Pilot Certifications 
+CREATE TABLE pilot_certifications (
+    cert_id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    certification VARCHAR(50) NOT NULL,
+    FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
 );
 
--- -----------------------------------------------------
--- TABLE: Booking
--- -----------------------------------------------------
-CREATE TABLE Booking (
-    booking_id INT AUTO_INCREMENT PRIMARY KEY,
-    passenger_id INT,
-    price DECIMAL(10,2),
-    seat_no VARCHAR(10),
-    booking_date DATE,
-    flight_id INT,
-    FOREIGN KEY (passenger_id) REFERENCES Passenger(passenger_id),
-    FOREIGN KEY (flight_id) REFERENCES Flight(flight_id)
+-- 6. Crew Languages 
+CREATE TABLE crew_languages (
+    lang_id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    language VARCHAR(50) NOT NULL,
+    FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
 );
 
--- -----------------------------------------------------
--- TABLE: Flight_Pilot
--- -----------------------------------------------------
-CREATE TABLE Flight_Pilot (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    flight_id INT,
-    pilot_id INT,
-    FOREIGN KEY (flight_id) REFERENCES Flight(flight_id),
-    FOREIGN KEY (pilot_id) REFERENCES Pilot(pilot_id)
+-- 7. Flights Table 
+CREATE TABLE flights (
+    flight_id INT AUTO_INCREMENT PRIMARY KEY,
+    flight_number VARCHAR(10) NOT NULL UNIQUE,
+    departure_airport CHAR(3) NOT NULL,
+    arrival_airport CHAR(3) NOT NULL,   	
+    departure_time TIME NOT NULL,      	
+    arrival_time TIME NOT NULL,
+    status VARCHAR(20) DEFAULT 'Scheduled',
+    available_seats INT NOT NULL,
+    
+    -- Foreign Keys
+    aircraft_id INT NOT NULL,
+    pilot_id INT NOT NULL, 	
+    
+    FOREIGN KEY (aircraft_id) REFERENCES aircrafts(aircraft_id),
+    FOREIGN KEY (pilot_id) REFERENCES employees(employee_id)
 );
 
--- -----------------------------------------------------
--- TABLE: Flight_Crew
--- -----------------------------------------------------
-CREATE TABLE Flight_Crew (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    flight_id INT,
-    crew_id INT,
-    FOREIGN KEY (flight_id) REFERENCES Flight(flight_id),
-    FOREIGN KEY (crew_id) REFERENCES CrewMember(crew_id)
+-- 8. Flight Crew Assignment 
+CREATE TABLE flight_crew_assignments (
+    assignment_id INT AUTO_INCREMENT PRIMARY KEY,
+    flight_id INT NOT NULL,
+    employee_id INT NOT NULL,
+    FOREIGN KEY (flight_id) REFERENCES flights(flight_id) ON DELETE CASCADE,
+    FOREIGN KEY (employee_id) REFERENCES employees(employee_id)
+);
+
+-- 9. Bookings Table 
+CREATE TABLE bookings (
+    booking_db_id INT AUTO_INCREMENT PRIMARY KEY,
+    booking_reference VARCHAR(20) NOT NULL UNIQUE, 
+    booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    seat_number VARCHAR(5) NOT NULL,
+    price DOUBLE NOT NULL,
+    
+    -- Relationships
+    passenger_id INT NOT NULL,
+    flight_id INT NOT NULL,
+    
+    FOREIGN KEY (passenger_id) REFERENCES passengers(passenger_id) ON DELETE CASCADE,
+    FOREIGN KEY (flight_id) REFERENCES flights(flight_id) ON DELETE CASCADE
 );
 
 
--- =====================================================
--- INSERT DATA
--- =====================================================
-
--- -----------------------------------------------------
--- Aircraft
--- -----------------------------------------------------
-INSERT INTO Aircraft (model, capacity, manufacture_year, range_km)
-VALUES
-('Airbus A320', 180, 2018, 6100),
-('Boeing 737-800', 160, 2016, 5600),
-('Airbus A350', 300, 2021, 15000);
-
--- -----------------------------------------------------
--- Flight
--- -----------------------------------------------------
-INSERT INTO Flight (origin, destination, departure_time, arrival_time, aircraft_id)
-VALUES
-('Cairo', 'Dubai', '2025-01-10 09:00', '2025-01-10 13:00', 1),
-('Cairo', 'London', '2025-01-11 06:30', '2025-01-11 11:50', 2),
-('cairo', 'Paris', '2025-01-12 17:00', '2025-01-12 22:30', 3);
-
--- -----------------------------------------------------
--- Passenger
--- -----------------------------------------------------
-INSERT INTO Passenger (fname, lname, email, phone, passport_no, nationality, password)
-VALUES
-('Omar', 'Hassan', 'omar@mail.com', '0100000001', 'A1234567', 'Egyptian', 'passOmar123'),
-('Sara', 'Adel', 'sara@mail.com', '0100000002', 'B9876543', 'Egyptian', 'saraPass22'),
-('John', 'Smith', 'john@mail.com', '0100000003', 'C1928374', 'British', 'johnKey44');
-
--- -----------------------------------------------------
--- Pilot
--- -----------------------------------------------------
-INSERT INTO Pilot (fname, lname, email, phone, salary, license_no, flight_hours, plane_type, password)
-VALUES
-('Ali', 'Mahmoud', 'ali.pilot@mail.com', '0101000001', 45000, 'LIC123', 5000, 'A320', 'pilotAli@12'),
-('David', 'Wilson', 'david.pilot@mail.com', '0101000002', 52000, 'LIC678', 7000, 'B737', 'davidPass99'),
-('Khaled', 'Saleh', 'khaled.pilot@mail.com', '0101000003', 60000, 'LIC555', 9000, 'A350', 'khaled350!');
-
--- -----------------------------------------------------
--- CrewMember
--- -----------------------------------------------------
-INSERT INTO CrewMember (fname, lname, email, phone, salary, position, language_spoken, password)
-VALUES
-('Mona', 'Ibrahim', 'mona.crew@mail.com', '0102000001', 15000, 'Flight Attendant', 'Arabic', 'MonaCrew11'),
-('James', 'Taylor', 'james.crew@mail.com', '0102000002', 16000, 'Flight Attendant', 'English', 'JamesCrew22'),
-('Rania', 'Khaled', 'rania.crew@mail.com', '0102000003', 17000, 'Purser', 'Arabic, English', 'RaniaPurser33');
-
--- -----------------------------------------------------
--- Booking
--- -----------------------------------------------------
-INSERT INTO Booking (passenger_id, price, seat_no, booking_date, flight_id)
-VALUES
-(1, 2500, '12A', '2025-01-01', 1),
-(2, 2700, '14B', '2025-01-02', 1),
-(3, 5500, '4C',  '2025-01-05', 2);
-
--- -----------------------------------------------------
--- Flight_Pilot
--- -----------------------------------------------------
-INSERT INTO Flight_Pilot (flight_id, pilot_id)
-VALUES
-(1, 1),
-(1, 2),
-(2, 2),
-(3, 3);
-
--- -----------------------------------------------------
--- Flight_Crew
--- -----------------------------------------------------
-INSERT INTO Flight_Crew (flight_id, crew_id)
-VALUES
-(1, 1),
-(1, 3),
-(2, 2),
-(3, 1),
-(3, 2),
-(3, 3);
