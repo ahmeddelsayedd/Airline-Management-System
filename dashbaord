@@ -1,0 +1,273 @@
+package AMS;
+
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import java.sql.*;
+import java.time.LocalDate;
+
+public class Dashboard {
+
+    private static String generateFlightNumber(Connection conn) throws SQLException {
+        String flightNo;
+        PreparedStatement checkStmt = conn.prepareStatement(
+            "SELECT flight_no FROM flights WHERE flight_no = ?"
+        );
+        
+        do {
+            int randomNum = (int) (Math.random() * 9000) + 1000;
+            flightNo = "VIP" + randomNum;
+            checkStmt.setString(1, flightNo);
+        } while (checkStmt.executeQuery().next());
+        
+        return flightNo;
+    }
+
+    public static void open(int userId, String role) {
+
+        Stage stage = new Stage();
+        
+        // Create a container with background image
+        VBox backgroundPane = new VBox();
+        backgroundPane.setStyle(
+            "-fx-background-image: url('file:/Users/mohammedreda/Desktop/BACK.jpg');" +
+            "-fx-background-size: cover;" +
+            "-fx-background-position: center center;" +
+            "-fx-background-repeat: no-repeat;"
+        );
+        
+        // Create content container with semi-transparent background
+        VBox root = new VBox(12);
+        root.setPadding(new Insets(20));
+        root.setMaxWidth(600);
+        root.setStyle(
+            "-fx-background-color: rgba(255, 255, 255, 0.75);" +
+            "-fx-background-radius: 15px;" +
+            "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 15, 0, 0, 5);"
+        );
+        
+        // Center the content
+        backgroundPane.getChildren().add(root);
+        backgroundPane.setAlignment(javafx.geometry.Pos.CENTER);
+        backgroundPane.setPadding(new Insets(40));
+
+        Label title = new Label(role + " Dashboard");
+        title.setStyle("-fx-font-size:30px; -fx-font-weight:bold; -fx-text-fill: #1a237e;");
+        root.getChildren().add(title);
+
+        try {
+            Connection conn = DBConnection.getConnection();
+
+            // ================= CREW & PILOT =================
+            if (role.equals("CREW") || role.equals("PILOT")) {
+
+                ListView<String> list = new ListView<>();
+                list.setPrefHeight(400);
+                list.setMaxWidth(550);
+                list.setStyle("-fx-font-size: 14px; -fx-background-color: rgba(255, 255, 255, 0.85); -fx-background-radius: 8px;");
+
+                String sql =
+                    "SELECT f.flight_no, f.origin, f.destination, f.flight_date, f.flight_time " +
+                    "FROM flights f JOIN employee_flights ef " +
+                    "ON f.id = ef.flight_id WHERE ef.user_id=?";
+
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ps.setInt(1, userId);
+                ResultSet rs = ps.executeQuery();
+
+                while (rs.next()) {
+                    list.getItems().add(
+                        rs.getString("flight_no") + " | " +
+                        rs.getString("origin") + " → " +
+                        rs.getString("destination") + " | " +
+                        rs.getDate("flight_date") + " at " +
+                        rs.getTime("flight_time")
+                    );
+                }
+
+                root.getChildren().add(list);
+            }
+
+            // ================= VIP PASSENGER =================
+            else {
+
+                Label info = new Label();
+                root.getChildren().add(info);
+
+                // Check if passenger already created a flight
+                String checkSql =
+                    "SELECT f.flight_no, f.origin, f.destination, f.flight_date, f.flight_time " +
+                    "FROM flights f JOIN bookings b " +
+                    "ON f.id = b.flight_id WHERE b.user_id=?";
+
+                PreparedStatement checkStmt = conn.prepareStatement(checkSql);
+                checkStmt.setInt(1, userId);
+                ResultSet rs = checkStmt.executeQuery();
+
+                // ===== ALREADY HAS A FLIGHT =====
+                if (rs.next()) {
+                    info.setText(
+                        "✈️ Your Private Jet Flight\n\n" +
+                        "Flight: " + rs.getString("flight_no") +
+                        "\nFrom: " + rs.getString("origin") +
+                        "\nTo: " + rs.getString("destination") +
+                        "\nDate: " + rs.getDate("flight_date") +
+                        "\nDeparture Time: " + rs.getTime("flight_time")
+                    );
+                    info.setStyle("-fx-font-size: 16px; -fx-padding: 20px; -fx-background-color: rgba(255, 255, 255, 0.9); -fx-background-radius: 10px; -fx-border-color: #2196F3; -fx-border-width: 2px; -fx-border-radius: 10px;");
+                }
+
+                // ===== CREATE NEW FLIGHT =====
+                else {
+
+                    info.setText("Create your private jet flight");
+                    info.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+
+                    TextField originField = new TextField();
+                    originField.setPromptText("Departing from? (e.g., New York, London)");
+                    originField.setPrefWidth(350);
+                    originField.setStyle("-fx-font-size: 14px; -fx-background-color: rgba(255, 255, 255, 0.95);");
+
+                    TextField destinationField = new TextField();
+                    destinationField.setPromptText("Where do you want to go? (e.g., Paris, Dubai)");
+                    destinationField.setPrefWidth(350);
+                    destinationField.setStyle("-fx-font-size: 14px; -fx-background-color: rgba(255, 255, 255, 0.95);");
+
+                    Label dateLabel = new Label("📅 Flight Date:");
+                    dateLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+                    
+                    DatePicker datePicker = new DatePicker();
+                    datePicker.setValue(LocalDate.now());
+                    datePicker.setPrefWidth(350);
+                    datePicker.setStyle("-fx-font-size: 14px; -fx-background-color: rgba(255, 255, 255, 0.95);");
+
+                    Label timeLabel = new Label("🕒 Departure Time:");
+                    timeLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+                    
+                    ComboBox<Integer> hourBox = new ComboBox<>();
+                    hourBox.setPromptText("Hour");
+                    hourBox.setPrefWidth(100);
+                    for (int i = 1; i <= 12; i++) {
+                        hourBox.getItems().add(i);
+                    }
+                    hourBox.setValue(9);
+                    
+                    ComboBox<Integer> minuteBox = new ComboBox<>();
+                    minuteBox.setPromptText("Minute");
+                    minuteBox.setPrefWidth(100);
+                    minuteBox.getItems().addAll(0, 15, 30, 45);
+                    minuteBox.setValue(0);
+                    
+                    ComboBox<String> amPmBox = new ComboBox<>();
+                    amPmBox.setPrefWidth(100);
+                    amPmBox.getItems().addAll("AM", "PM");
+                    amPmBox.setValue("AM");
+
+                    Button createBtn = new Button("Create My Flight");
+                    createBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-size: 16px; -fx-padding: 10px 30px;");
+
+                    Label status = new Label();
+
+                    createBtn.setOnAction(e -> {
+                        try {
+                            if (originField.getText().trim().isEmpty() ||
+                                destinationField.getText().trim().isEmpty() ||
+                                datePicker.getValue() == null) {
+                                status.setText("⚠️ Please fill all fields");
+                                status.setStyle("-fx-text-fill: red;");
+                                return;
+                            }
+
+                            // Generate unique flight number
+                            String flightNo = generateFlightNumber(conn);
+
+                            // Convert 12-hour to 24-hour format
+                            int hour = hourBox.getValue();
+                            String amPm = amPmBox.getValue();
+                            
+                            if (amPm.equals("PM") && hour != 12) {
+                                hour += 12;
+                            } else if (amPm.equals("AM") && hour == 12) {
+                                hour = 0;
+                            }
+
+                            // Create the flight
+                            String flightTime = String.format("%02d:%02d:00", 
+                                hour, minuteBox.getValue());
+                            
+                            String flightDate = datePicker.getValue().toString();
+
+                            PreparedStatement createFlight = conn.prepareStatement(
+                                "INSERT INTO flights (flight_no, origin, destination, flight_date, flight_time) " +
+                                "VALUES (?, ?, ?, ?, ?)",
+                                Statement.RETURN_GENERATED_KEYS
+                            );
+                            createFlight.setString(1, flightNo);
+                            createFlight.setString(2, originField.getText().trim());
+                            createFlight.setString(3, destinationField.getText().trim());
+                            createFlight.setString(4, flightDate);
+                            createFlight.setString(5, flightTime);
+                            createFlight.executeUpdate();
+
+                            // Get the created flight ID
+                            ResultSet generatedKeys = createFlight.getGeneratedKeys();
+                            int newFlightId = -1;
+                            if (generatedKeys.next()) {
+                                newFlightId = generatedKeys.getInt(1);
+                            }
+
+                            // Book the flight
+                            PreparedStatement bookFlight = conn.prepareStatement(
+                                "INSERT INTO bookings (user_id, flight_id, booking_date) " +
+                                "VALUES (?, ?, CURDATE())"
+                            );
+                            bookFlight.setInt(1, userId);
+                            bookFlight.setInt(2, newFlightId);
+                            bookFlight.executeUpdate();
+
+                            status.setText("✅ Flight " + flightNo + " has been created!");
+                            status.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
+                            
+                            originField.setDisable(true);
+                            destinationField.setDisable(true);
+                            datePicker.setDisable(true);
+                            hourBox.setDisable(true);
+                            minuteBox.setDisable(true);
+                            amPmBox.setDisable(true);
+                            createBtn.setDisable(true);
+
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                            status.setText("❌ Failed to create flight: " + ex.getMessage());
+                            status.setStyle("-fx-text-fill: red;");
+                        }
+                    });
+
+                    root.getChildren().addAll(
+                        new Label("🛫 Origin:"), originField,
+                        new Label("🌍 Destination:"), destinationField,
+                        dateLabel, datePicker,
+                        timeLabel,
+                        new Label("Hour:"), hourBox,
+                        new Label("Minute:"), minuteBox,
+                        new Label("AM/PM:"), amPmBox,
+                        createBtn, status
+                    );
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        Scene scene = new Scene(backgroundPane, 1000, 700);
+        stage.setScene(scene);
+        stage.setTitle(role + " Dashboard");
+        stage.setResizable(true);
+        stage.centerOnScreen();
+        stage.show();
+    }
+}
