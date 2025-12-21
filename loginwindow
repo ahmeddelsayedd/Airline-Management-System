@@ -1,0 +1,72 @@
+
+package AMS;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+import java.sql.*;
+
+public class LoginWindow {
+
+    private static Stage stage;   // ONE window only
+    private static String expectedRole;
+
+    public static void open(String role) {
+
+        expectedRole = role;
+
+        if (stage == null) {
+            stage = new Stage();
+        }
+
+        Label title = new Label(role + " Login");
+        title.setStyle("-fx-font-size:18px;");
+
+        TextField email = new TextField();
+        email.setPromptText("Email");
+
+        PasswordField password = new PasswordField();
+        password.setPromptText("Password");
+
+        Button login = new Button("Login");
+        Label msg = new Label();
+
+        login.setOnAction(e -> {
+
+            try {
+                Connection conn = DBConnection.getConnection();
+
+                String sql =
+                        "SELECT id, role FROM users WHERE email=? AND password=?";
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ps.setString(1, email.getText().trim());
+                ps.setString(2, password.getText().trim());
+
+                ResultSet rs = ps.executeQuery();
+
+                if (rs.next()) {
+                    if (rs.getString("role").equals(expectedRole)) {
+                        stage.close();        // CLOSE login window
+                        Dashboard.open(rs.getInt("id"), expectedRole);
+                    } else {
+                        msg.setText("Wrong role selected");
+                    }
+                } else {
+                    msg.setText("Invalid email or password");
+                }
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        });
+
+        VBox root = new VBox(10, title, email, password, login, msg);
+        root.setAlignment(Pos.CENTER);
+
+        stage.setScene(new Scene(root, 360, 360));
+        stage.setTitle(role + " Login");
+        stage.show();
+        stage.toFront();   // VERY IMPORTANT
+    }
+}
