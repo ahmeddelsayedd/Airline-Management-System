@@ -1,0 +1,90 @@
+-- ================================
+-- AIRLINE MANAGEMENT SYSTEM
+-- FULL DATABASE SETUP
+-- ================================
+
+DROP DATABASE IF EXISTS airline_management_system;
+CREATE DATABASE airline_management_system;
+USE airline_management_system;
+
+-- ================================
+-- USERS TABLE
+-- ================================
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(100) NOT NULL,
+    role ENUM('CREW', 'PILOT', 'PASSENGER') NOT NULL
+);
+
+-- ================================
+-- FLIGHTS TABLE
+-- ================================
+CREATE TABLE flights (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    flight_no VARCHAR(20) NOT NULL,
+    origin VARCHAR(50),
+    destination VARCHAR(50),
+    flight_date DATE,
+    flight_time TIME
+);
+
+-- ================================
+-- BOOKINGS TABLE (VIP PASSENGERS)
+-- ================================
+CREATE TABLE bookings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    flight_id INT,
+    booking_date DATE,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (flight_id) REFERENCES flights(id) ON DELETE CASCADE
+);
+
+-- ================================
+-- EMPLOYEE FLIGHTS (CREW & PILOT)
+-- ================================
+CREATE TABLE employee_flights (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    flight_id INT,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (flight_id) REFERENCES flights(id) ON DELETE CASCADE
+);
+
+-- ================================
+-- SAMPLE USERS
+-- ================================
+INSERT INTO users (email, password, role) VALUES
+('crew@airline.com', '1234', 'CREW'),
+('pilot@airline.com', '1234', 'PILOT'),
+('vip@airline.com', '1234', 'PASSENGER');
+
+-- ================================
+-- SAMPLE FLIGHTS
+-- ================================
+INSERT INTO flights (flight_no, origin, destination, flight_date, flight_time) VALUES
+('MS101', 'Cairo', 'London', '2025-01-20', '10:30:00'),
+('MS202', 'Cairo', 'Paris', '2025-01-22', '14:00:00'),
+('MS303', 'Cairo', 'Dubai', '2025-01-25', '18:45:00'),
+('MS404', 'Cairo', 'Rome', '2025-01-28', '09:15:00');
+
+-- ================================
+-- ASSIGN FLIGHTS TO EMPLOYEES
+-- ================================
+INSERT INTO employee_flights (user_id, flight_id) VALUES
+(1, 1),
+(1, 2),
+(2, 3);
+
+-- ================================
+-- VIP PASSENGER BOOKING
+-- ================================
+INSERT INTO bookings (user_id, flight_id, booking_date)
+VALUES (3, 1, CURDATE());
+
+-- ================================
+-- END OF SCRIPT
+-- ================================
