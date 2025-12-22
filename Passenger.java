@@ -53,3 +53,4 @@ public Passenger(String name, String email, String password, String phone,
         return super.toString() + ", Passport: " + passportNumber + ", Nationality: " + nationality;
     }
 }
+
