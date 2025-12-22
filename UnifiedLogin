@@ -1,0 +1,121 @@
+package AMS;
+
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+import java.sql.*;
+
+/**
+ * Unified Login Window - automatically detects user role from database
+ * Demonstrates encapsulation and single responsibility principle
+ */
+public class UnifiedLogin {
+    private Stage stage;
+    
+    public void open() {
+        stage = new Stage();
+        
+        // Create UI components
+        Label title = new Label("Airline Management System");
+        title.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #1a237e;");
+        
+        Label subtitle = new Label("Login");
+        subtitle.setStyle("-fx-font-size: 16px; -fx-text-fill: #666;");
+        
+        TextField emailField = new TextField();
+        emailField.setPromptText("Email");
+        emailField.setPrefWidth(300);
+        emailField.setStyle("-fx-font-size: 14px;");
+        
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Password");
+        passwordField.setPrefWidth(300);
+        passwordField.setStyle("-fx-font-size: 14px;");
+        
+        Button loginBtn = new Button("Login");
+        loginBtn.setPrefWidth(300);
+        loginBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-size: 16px; -fx-padding: 10px;");
+        
+        Label messageLabel = new Label();
+        messageLabel.setStyle("-fx-text-fill: red;");
+        
+        // Login button action
+        loginBtn.setOnAction(e -> handleLogin(emailField.getText(), passwordField.getText(), messageLabel));
+        
+        // Allow Enter key to login
+        passwordField.setOnAction(e -> handleLogin(emailField.getText(), passwordField.getText(), messageLabel));
+        
+        // Layout
+        VBox root = new VBox(15);
+        root.setAlignment(Pos.CENTER);
+        root.setStyle("-fx-padding: 40px; -fx-background-color: #f5f5f5;");
+        root.getChildren().addAll(title, subtitle, emailField, passwordField, loginBtn, messageLabel);
+        
+        Scene scene = new Scene(root, 500, 400);
+        stage.setScene(scene);
+        stage.setTitle("Login - Airline Management System");
+        stage.setResizable(false);
+        stage.show();
+    }
+    
+    /**
+     * Handle login - demonstrates polymorphism by creating different dashboard types
+     */
+    private void handleLogin(String email, String password, Label messageLabel) {
+        if (email.trim().isEmpty() || password.trim().isEmpty()) {
+            messageLabel.setText("Please enter email and password");
+            return;
+        }
+        
+        try {
+            Connection conn = DBConnection.getConnection();
+            
+            // Query to get user info
+            String sql = "SELECT id, name, role FROM users WHERE email = ? AND password = ?";
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setString(1, email.trim());
+            ps.setString(2, password.trim());
+            
+            ResultSet rs = ps.executeQuery();
+            
+            if (rs.next()) {
+                int userId = rs.getInt("id");
+                String name = rs.getString("name");
+                String role = rs.getString("role");
+                
+                // Close login window
+                stage.close();
+                
+                // Open appropriate dashboard based on role (Polymorphism)
+                switch (role) {
+                    case "ADMIN":
+                        new AdminDashboard(userId, name).open();
+                        break;
+                    case "PILOT":
+                        new EmployeeDashboard(userId, name, "PILOT").open();
+                        break;
+                    case "CREW":
+                        new EmployeeDashboard(userId, name, "CREW").open();
+                        break;
+                    case "PASSENGER":
+                        new PassengerDashboard(userId, name).open();
+                        break;
+                    default:
+                        messageLabel.setText("Invalid user role");
+                }
+            } else {
+                messageLabel.setText("Invalid email or password");
+            }
+            
+            rs.close();
+            ps.close();
+            conn.close();
+            
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            messageLabel.setText("Database error: " + ex.getMessage());
+        }
+    }
+}
