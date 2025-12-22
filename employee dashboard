@@ -1,0 +1,234 @@
+package AMS;
+
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.stage.Stage;
+import javafx.geometry.Insets;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import java.sql.*;
+
+/**
+ * Employee Dashboard for Pilots and Crew Members
+ * Demonstrates: Polymorphism (same dashboard for different employee types)
+ */
+public class EmployeeDashboard {
+    private int userId;
+    private String name;
+    private String role;
+    private Stage stage;
+    
+    public EmployeeDashboard(int userId, String name, String role) {
+        this.userId = userId;
+        this.name = name;
+        this.role = role;
+    }
+    
+    public void open() {
+        stage = new Stage();
+        
+        VBox root = new VBox(15);
+        root.setPadding(new Insets(20));
+        root.setStyle("-fx-background-color: #f5f5f5;");
+        
+        // Title
+        Label title = new Label(role + " Dashboard");
+        title.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #1a237e;");
+        
+        Label welcome = new Label("Welcome, " + name);
+        welcome.setStyle("-fx-font-size: 16px; -fx-text-fill: #666;");
+        
+        // Employee Info Card
+        VBox infoCard = createInfoCard();
+        
+        // Assigned Flights Section
+        VBox flightsSection = createFlightsSection();
+        
+        root.getChildren().addAll(title, welcome, infoCard, new Separator(), flightsSection);
+        
+        Scene scene = new Scene(root, 900, 650);
+        stage.setScene(scene);
+        stage.setTitle(role + " Dashboard");
+        stage.show();
+    }
+    
+    private VBox createInfoCard() {
+        VBox card = new VBox(10);
+        card.setPadding(new Insets(15));
+        card.setStyle("-fx-background-color: white; -fx-background-radius: 10px; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 2);");
+        
+        Label cardTitle = new Label("📋 Your Information");
+        cardTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        
+        Label infoLabel = new Label();
+        infoLabel.setStyle("-fx-font-size: 14px;");
+        
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql;
+            
+            if (role.equals("PILOT")) {
+                sql = "SELECT u.email, u.phone, e.employee_id, e.salary, e.department, p.license_number, p.flight_hours, p.certifications " +
+                      "FROM users u " +
+                      "JOIN employees e ON u.id = e.id " +
+                      "JOIN pilots p ON u.id = p.id " +
+                      "WHERE u.id = ?";
+            } else {
+                sql = "SELECT u.email, u.phone, e.employee_id, e.salary, e.department, c.position, c.languages_spoken " +
+                      "FROM users u " +
+                      "JOIN employees e ON u.id = e.id " +
+                      "JOIN crew_members c ON u.id = c.id " +
+                      "WHERE u.id = ?";
+            }
+            
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, userId);
+            ResultSet rs = ps.executeQuery();
+            
+            if (rs.next()) {
+                StringBuilder info = new StringBuilder();
+                info.append("Name: ").append(name).append("\n");
+                info.append("Employee ID: ").append(rs.getString("employee_id")).append("\n");
+                info.append("Email: ").append(rs.getString("email")).append("\n");
+                info.append("Phone: ").append(rs.getString("phone")).append("\n");
+                info.append("Department: ").append(rs.getString("department")).append("\n");
+                info.append("Salary: $").append(String.format("%.2f", rs.getDouble("salary"))).append("\n");
+                
+                if (role.equals("PILOT")) {
+                    info.append("License: ").append(rs.getString("license_number")).append("\n");
+                    info.append("Flight Hours: ").append(rs.getInt("flight_hours")).append("\n");
+                    info.append("Certifications: ").append(rs.getString("certifications"));
+                } else {
+                    info.append("Position: ").append(rs.getString("position")).append("\n");
+                    info.append("Languages: ").append(rs.getString("languages_spoken"));
+                }
+                
+                infoLabel.setText(info.toString());
+            }
+            
+        } catch (SQLException e) {
+            e.printStackTrace();
+            infoLabel.setText("Error loading information");
+        }
+        
+        card.getChildren().addAll(cardTitle, infoLabel);
+        return card;
+    }
+    
+    private VBox createFlightsSection() {
+        VBox section = new VBox(10);
+        
+        Label sectionTitle = new Label("✈️ Your Assigned Flights");
+        sectionTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        
+        TableView<ObservableList<String>> table = new TableView<>();
+        table.setPrefHeight(300);
+        
+        if (role.equals("PILOT")) {
+            setupPilotFlightTable(table);
+            loadPilotFlights(table);
+        } else {
+            setupCrewFlightTable(table);
+            loadCrewFlights(table);
+        }
+        
+        Button refreshBtn = new Button("🔄 Refresh");
+        refreshBtn.setOnAction(e -> {
+            if (role.equals("PILOT")) {
+                loadPilotFlights(table);
+            } else {
+                loadCrewFlights(table);
+            }
+        });
+        
+        section.getChildren().addAll(sectionTitle, table, refreshBtn);
+        return section;
+    }
+    
+    private void setupPilotFlightTable(TableView<ObservableList<String>> table) {
+        String[] columns = {"Flight #", "From", "To", "Date", "Departure", "Arrival", "Aircraft", "Status"};
+        for (int i = 0; i < columns.length; i++) {
+            final int colIndex = i;
+            TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
+            column.setCellValueFactory(param -> 
+                new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
+            table.getColumns().add(column);
+        }
+    }
+    
+    private void setupCrewFlightTable(TableView<ObservableList<String>> table) {
+        String[] columns = {"Flight #", "From", "To", "Date", "Departure", "Status", "Pilot"};
+        for (int i = 0; i < columns.length; i++) {
+            final int colIndex = i;
+            TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
+            column.setCellValueFactory(param -> 
+                new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
+            table.getColumns().add(column);
+        }
+    }
+    
+    private void loadPilotFlights(TableView<ObservableList<String>> table) {
+        table.getItems().clear();
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT f.flight_number, f.departure_airport, f.arrival_airport, f.flight_date, " +
+                        "f.departure_time, f.arrival_time, f.status, a.registration_number " +
+                        "FROM flights f " +
+                        "LEFT JOIN aircraft a ON f.aircraft_id = a.id " +
+                        "WHERE f.pilot_id = ? " +
+                        "ORDER BY f.flight_date DESC";
+            
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, userId);
+            ResultSet rs = ps.executeQuery();
+            
+            while (rs.next()) {
+                ObservableList<String> row = FXCollections.observableArrayList();
+                row.add(rs.getString("flight_number"));
+                row.add(rs.getString("departure_airport"));
+                row.add(rs.getString("arrival_airport"));
+                row.add(rs.getString("flight_date"));
+                row.add(rs.getString("departure_time"));
+                row.add(rs.getString("arrival_time"));
+                row.add(rs.getString("registration_number") != null ? rs.getString("registration_number") : "TBA");
+                row.add(rs.getString("status"));
+                table.getItems().add(row);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private void loadCrewFlights(TableView<ObservableList<String>> table) {
+        table.getItems().clear();
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT f.flight_number, f.departure_airport, f.arrival_airport, f.flight_date, " +
+                        "f.departure_time, f.status, u.name as pilot_name " +
+                        "FROM flights f " +
+                        "JOIN flight_crew fc ON f.id = fc.flight_id " +
+                        "LEFT JOIN users u ON f.pilot_id = u.id " +
+                        "WHERE fc.crew_member_id = ? " +
+                        "ORDER BY f.flight_date DESC";
+            
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, userId);
+            ResultSet rs = ps.executeQuery();
+            
+            while (rs.next()) {
+                ObservableList<String> row = FXCollections.observableArrayList();
+                row.add(rs.getString("flight_number"));
+                row.add(rs.getString("departure_airport"));
+                row.add(rs.getString("arrival_airport"));
+                row.add(rs.getString("flight_date"));
+                row.add(rs.getString("departure_time"));
+                row.add(rs.getString("status"));
+                row.add(rs.getString("pilot_name") != null ? rs.getString("pilot_name") : "TBA");
+                table.getItems().add(row);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
