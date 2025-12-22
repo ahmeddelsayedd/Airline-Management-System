@@ -1,0 +1,1100 @@
+package AMS;
+
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.stage.Stage;
+import javafx.geometry.Insets;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import java.sql.*;
+import java.io.*;
+
+/**
+ * Admin Dashboard - Full CRUD operations for all entities
+ * Demonstrates: Encapsulation, Method Overloading, Exception Handling
+ */
+public class AdminDashboard {
+    private int adminId;
+    private String adminName;
+    private Stage stage;
+    private TabPane tabPane;
+    
+    public AdminDashboard(int adminId, String adminName) {
+        this.adminId = adminId;
+        this.adminName = adminName;
+    }
+    
+    public void open() {
+        stage = new Stage();
+        
+        // Create tab pane
+        tabPane = new TabPane();
+        
+        // Add tabs for each management section
+        tabPane.getTabs().addAll(
+            createAircraftTab(),
+            createPilotTab(),
+            createCrewTab(),
+            createPassengerTab(),
+            createFlightTab(),
+            createPaycheckTab()
+        );
+        
+        // Main layout
+        VBox root = new VBox(10);
+        Label title = new Label("Admin Dashboard - Welcome, " + adminName);
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
+        root.getChildren().addAll(title, tabPane);
+        root.setPadding(new Insets(15));
+        
+        Scene scene = new Scene(root, 1200, 700);
+        stage.setScene(scene);
+        stage.setTitle("Admin Dashboard");
+        stage.show();
+    }
+    
+    // ========== AIRCRAFT MANAGEMENT ==========
+    private Tab createAircraftTab() {
+        Tab tab = new Tab("Aircraft Management");
+        tab.setClosable(false);
+        
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(10));
+        
+        // Form fields
+        TextField regNumField = new TextField();
+        regNumField.setPromptText("Registration Number (e.g., N12345)");
+        
+        TextField modelField = new TextField();
+        modelField.setPromptText("Model");
+        
+        ComboBox<String> manufacturerBox = new ComboBox<>();
+        manufacturerBox.getItems().addAll("Boeing", "Airbus", "Embraer", "Bombardier", "ATR");
+        manufacturerBox.setPromptText("Manufacturer");
+        
+        TextField capacityField = new TextField();
+        capacityField.setPromptText("Capacity");
+        
+        TextField rangeField = new TextField();
+        rangeField.setPromptText("Range (km)");
+        
+        Button addBtn = new Button("Add Aircraft");
+        Button refreshBtn = new Button("Refresh List");
+        Label statusLabel = new Label();
+        
+        // TableView to display aircraft
+        TableView<ObservableList<String>> table = new TableView<>();
+        setupAircraftTable(table);
+        
+        addBtn.setOnAction(e -> {
+            try {
+                Aircraft aircraft = new Aircraft(
+                    regNumField.getText(),
+                    modelField.getText(),
+                    manufacturerBox.getValue(),
+                    Integer.parseInt(capacityField.getText()),
+                    Double.parseDouble(rangeField.getText())
+                );
+                
+                addAircraftToDB(aircraft);
+                statusLabel.setText("✅ Aircraft added successfully!");
+                statusLabel.setStyle("-fx-text-fill: green;");
+                refreshAircraftTable(table);
+                
+                // Clear fields
+                regNumField.clear();
+                modelField.clear();
+                manufacturerBox.setValue(null);
+                capacityField.clear();
+                rangeField.clear();
+                
+            } catch (IllegalArgumentException ex) {
+                statusLabel.setText("❌ " + ex.getMessage());
+                statusLabel.setStyle("-fx-text-fill: red;");
+            } catch (Exception ex) {
+                statusLabel.setText("❌ Error: " + ex.getMessage());
+                statusLabel.setStyle("-fx-text-fill: red;");
+            }
+        });
+        
+        refreshBtn.setOnAction(e -> refreshAircraftTable(table));
+        
+        HBox buttonBox = new HBox(10, addBtn, refreshBtn);
+        
+        content.getChildren().addAll(
+            new Label("Add New Aircraft:"),
+            regNumField, modelField, manufacturerBox, capacityField, rangeField,
+            buttonBox, statusLabel,
+            new Separator(),
+            new Label("Aircraft List:"),
+            table
+        );
+        
+        tab.setContent(content);
+        refreshAircraftTable(table);
+        return tab;
+    }
+    
+    private void setupAircraftTable(TableView<ObservableList<String>> table) {
+        String[] columns = {"ID", "Registration", "Model", "Manufacturer", "Capacity", "Range (km)"};
+        for (int i = 0; i < columns.length; i++) {
+            final int colIndex = i;
+            TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
+            column.setCellValueFactory(param -> 
+                new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
+            table.getColumns().add(column);
+        }
+    }
+    
+    private void refreshAircraftTable(TableView<ObservableList<String>> table) {
+        table.getItems().clear();
+        try {
+            Connection conn = DBConnection.getConnection();
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM aircraft");
+            
+            while (rs.next()) {
+                ObservableList<String> row = FXCollections.observableArrayList();
+                row.add(rs.getString("id"));
+                row.add(rs.getString("registration_number"));
+                row.add(rs.getString("model"));
+                row.add(rs.getString("manufacturer"));
+                row.add(rs.getString("capacity"));
+                row.add(rs.getString("range_km"));
+                table.getItems().add(row);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private void addAircraftToDB(Aircraft aircraft) throws SQLException {
+        Connection conn = DBConnection.getConnection();
+        String sql = "INSERT INTO aircraft (registration_number, model, manufacturer, capacity, range_km) VALUES (?, ?, ?, ?, ?)";
+        PreparedStatement ps = conn.prepareStatement(sql);
+        ps.setString(1, aircraft.getRegistrationNumber());
+        ps.setString(2, aircraft.getModel());
+        ps.setString(3, aircraft.getManufacturer());
+        ps.setInt(4, aircraft.getCapacity());
+        ps.setDouble(5, aircraft.getRangeInKm());
+        ps.executeUpdate();
+    }
+    
+    // ========== PILOT MANAGEMENT ==========
+    private Tab createPilotTab() {
+        Tab tab = new Tab("Pilot Management");
+        tab.setClosable(false);
+        
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(10));
+        
+        // Form fields
+        TextField nameField = new TextField();
+        nameField.setPromptText("Name");
+        
+        TextField emailField = new TextField();
+        emailField.setPromptText("Email");
+        
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Password");
+        
+        TextField phoneField = new TextField();
+        phoneField.setPromptText("Phone");
+        
+        TextField empIdField = new TextField();
+        empIdField.setPromptText("Employee ID (e.g., EMP001)");
+        
+        TextField salaryField = new TextField();
+        salaryField.setPromptText("Salary");
+        
+        TextField bankAccountField = new TextField();
+        bankAccountField.setPromptText("Bank Account");
+        
+        TextField licenseField = new TextField();
+        licenseField.setPromptText("License Number (e.g., LIC-123456)");
+        
+        TextField flightHoursField = new TextField();
+        flightHoursField.setPromptText("Flight Hours");
+        
+        TextField certificationsField = new TextField();
+        certificationsField.setPromptText("Certifications (comma-separated)");
+        
+        Button addBtn = new Button("Add Pilot");
+        Button refreshBtn = new Button("Refresh List");
+        Label statusLabel = new Label();
+        
+        // TableView
+        TableView<ObservableList<String>> table = new TableView<>();
+        setupPilotTable(table);
+        
+        addBtn.setOnAction(e -> {
+            try {
+                Connection conn = DBConnection.getConnection();
+                conn.setAutoCommit(false);
+                
+                // Insert into users table
+                String userSql = "INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, 'PILOT')";
+                PreparedStatement userPs = conn.prepareStatement(userSql, Statement.RETURN_GENERATED_KEYS);
+                userPs.setString(1, nameField.getText());
+                userPs.setString(2, emailField.getText());
+                userPs.setString(3, passwordField.getText());
+                userPs.setString(4, phoneField.getText());
+                userPs.executeUpdate();
+                
+                ResultSet rs = userPs.getGeneratedKeys();
+                int userId = 0;
+                if (rs.next()) {
+                    userId = rs.getInt(1);
+                }
+                
+                // Insert into employees table
+                String empSql = "INSERT INTO employees (id, employee_id, salary, department, bank_account) VALUES (?, ?, ?, 'Flight Operations', ?)";
+                PreparedStatement empPs = conn.prepareStatement(empSql);
+                empPs.setInt(1, userId);
+                empPs.setString(2, empIdField.getText());
+                empPs.setDouble(3, Double.parseDouble(salaryField.getText()));
+                empPs.setString(4, bankAccountField.getText());
+                empPs.executeUpdate();
+                
+                // Insert into pilots table
+                String pilotSql = "INSERT INTO pilots (id, license_number, flight_hours, certifications) VALUES (?, ?, ?, ?)";
+                PreparedStatement pilotPs = conn.prepareStatement(pilotSql);
+                pilotPs.setInt(1, userId);
+                pilotPs.setString(2, licenseField.getText());
+                pilotPs.setInt(3, Integer.parseInt(flightHoursField.getText()));
+                pilotPs.setString(4, certificationsField.getText());
+                pilotPs.executeUpdate();
+                
+                conn.commit();
+                conn.setAutoCommit(true);
+                
+                statusLabel.setText("✅ Pilot added successfully!");
+                statusLabel.setStyle("-fx-text-fill: green;");
+                refreshPilotTable(table);
+                
+                // Clear fields
+                nameField.clear();
+                emailField.clear();
+                passwordField.clear();
+                phoneField.clear();
+                empIdField.clear();
+                salaryField.clear();
+                bankAccountField.clear();
+                licenseField.clear();
+                flightHoursField.clear();
+                certificationsField.clear();
+                
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                statusLabel.setText("❌ Error: " + ex.getMessage());
+                statusLabel.setStyle("-fx-text-fill: red;");
+                try {
+                    DBConnection.getConnection().rollback();
+                } catch (SQLException e1) {
+                    e1.printStackTrace();
+                }
+            }
+        });
+        
+        refreshBtn.setOnAction(e -> refreshPilotTable(table));
+        
+        HBox buttonBox = new HBox(10, addBtn, refreshBtn);
+        
+        content.getChildren().addAll(
+            new Label("Add New Pilot:"),
+            nameField, emailField, passwordField, phoneField,
+            empIdField, salaryField, bankAccountField,
+            licenseField, flightHoursField, certificationsField,
+            buttonBox, statusLabel,
+            new Separator(),
+            new Label("Pilot List:"),
+            table
+        );
+        
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        tab.setContent(scroll);
+        refreshPilotTable(table);
+        return tab;
+    }
+    
+    private void setupPilotTable(TableView<ObservableList<String>> table) {
+        String[] columns = {"ID", "Name", "Email", "Employee ID", "License", "Flight Hours", "Salary"};
+        for (int i = 0; i < columns.length; i++) {
+            final int colIndex = i;
+            TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
+            column.setCellValueFactory(param -> 
+                new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
+            table.getColumns().add(column);
+        }
+    }
+    
+    private void refreshPilotTable(TableView<ObservableList<String>> table) {
+        table.getItems().clear();
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT u.id, u.name, u.email, e.employee_id, p.license_number, p.flight_hours, e.salary " +
+                        "FROM users u " +
+                        "JOIN employees e ON u.id = e.id " +
+                        "JOIN pilots p ON u.id = p.id";
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql);
+            
+            while (rs.next()) {
+                ObservableList<String> row = FXCollections.observableArrayList();
+                row.add(rs.getString("id"));
+                row.add(rs.getString("name"));
+                row.add(rs.getString("email"));
+                row.add(rs.getString("employee_id"));
+                row.add(rs.getString("license_number"));
+                row.add(rs.getString("flight_hours"));
+                row.add("$" + rs.getString("salary"));
+                table.getItems().add(row);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    // ========== CREW MEMBER MANAGEMENT ==========
+    private Tab createCrewTab() {
+        Tab tab = new Tab("Crew Management");
+        tab.setClosable(false);
+        
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(10));
+        
+        // Form fields
+        TextField nameField = new TextField();
+        nameField.setPromptText("Name");
+        
+        TextField emailField = new TextField();
+        emailField.setPromptText("Email");
+        
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Password");
+        
+        TextField phoneField = new TextField();
+        phoneField.setPromptText("Phone");
+        
+        TextField empIdField = new TextField();
+        empIdField.setPromptText("Employee ID (e.g., EMP003)");
+        
+        TextField salaryField = new TextField();
+        salaryField.setPromptText("Salary");
+        
+        TextField bankAccountField = new TextField();
+        bankAccountField.setPromptText("Bank Account");
+        
+        ComboBox<String> positionBox = new ComboBox<>();
+        positionBox.getItems().addAll("Flight Attendant", "Senior Flight Attendant", "Lead Flight Attendant", "Purser", "Chief Purser");
+        positionBox.setPromptText("Position");
+        
+        TextField languagesField = new TextField();
+        languagesField.setPromptText("Languages (comma-separated)");
+        
+        Button addBtn = new Button("Add Crew Member");
+        Button refreshBtn = new Button("Refresh List");
+        Label statusLabel = new Label();
+        
+        // TableView
+        TableView<ObservableList<String>> table = new TableView<>();
+        setupCrewTable(table);
+        
+        addBtn.setOnAction(e -> {
+            try {
+                Connection conn = DBConnection.getConnection();
+                conn.setAutoCommit(false);
+                
+                // Insert into users table
+                String userSql = "INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, 'CREW')";
+                PreparedStatement userPs = conn.prepareStatement(userSql, Statement.RETURN_GENERATED_KEYS);
+                userPs.setString(1, nameField.getText());
+                userPs.setString(2, emailField.getText());
+                userPs.setString(3, passwordField.getText());
+                userPs.setString(4, phoneField.getText());
+                userPs.executeUpdate();
+                
+                ResultSet rs = userPs.getGeneratedKeys();
+                int userId = 0;
+                if (rs.next()) {
+                    userId = rs.getInt(1);
+                }
+                
+                // Insert into employees table
+                String empSql = "INSERT INTO employees (id, employee_id, salary, department, bank_account) VALUES (?, ?, ?, 'Cabin Crew', ?)";
+                PreparedStatement empPs = conn.prepareStatement(empSql);
+                empPs.setInt(1, userId);
+                empPs.setString(2, empIdField.getText());
+                empPs.setDouble(3, Double.parseDouble(salaryField.getText()));
+                empPs.setString(4, bankAccountField.getText());
+                empPs.executeUpdate();
+                
+                // Insert into crew_members table
+                String crewSql = "INSERT INTO crew_members (id, position, languages_spoken) VALUES (?, ?, ?)";
+                PreparedStatement crewPs = conn.prepareStatement(crewSql);
+                crewPs.setInt(1, userId);
+                crewPs.setString(2, positionBox.getValue());
+                crewPs.setString(3, languagesField.getText());
+                crewPs.executeUpdate();
+                
+                conn.commit();
+                conn.setAutoCommit(true);
+                
+                statusLabel.setText("✅ Crew member added successfully!");
+                statusLabel.setStyle("-fx-text-fill: green;");
+                refreshCrewTable(table);
+                
+                // Clear fields
+                nameField.clear();
+                emailField.clear();
+                passwordField.clear();
+                phoneField.clear();
+                empIdField.clear();
+                salaryField.clear();
+                bankAccountField.clear();
+                positionBox.setValue(null);
+                languagesField.clear();
+                
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                statusLabel.setText("❌ Error: " + ex.getMessage());
+                statusLabel.setStyle("-fx-text-fill: red;");
+                try {
+                    DBConnection.getConnection().rollback();
+                } catch (SQLException e1) {
+                    e1.printStackTrace();
+                }
+            }
+        });
+        
+        refreshBtn.setOnAction(e -> refreshCrewTable(table));
+        
+        HBox buttonBox = new HBox(10, addBtn, refreshBtn);
+        
+        content.getChildren().addAll(
+            new Label("Add New Crew Member:"),
+            nameField, emailField, passwordField, phoneField,
+            empIdField, salaryField, bankAccountField,
+            positionBox, languagesField,
+            buttonBox, statusLabel,
+            new Separator(),
+            new Label("Crew List:"),
+            table
+        );
+        
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        tab.setContent(scroll);
+        refreshCrewTable(table);
+        return tab;
+    }
+    
+    private void setupCrewTable(TableView<ObservableList<String>> table) {
+        String[] columns = {"ID", "Name", "Email", "Employee ID", "Position", "Languages", "Salary"};
+        for (int i = 0; i < columns.length; i++) {
+            final int colIndex = i;
+            TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
+            column.setCellValueFactory(param -> 
+                new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
+            table.getColumns().add(column);
+        }
+    }
+    
+    private void refreshCrewTable(TableView<ObservableList<String>> table) {
+        table.getItems().clear();
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT u.id, u.name, u.email, e.employee_id, c.position, c.languages_spoken, e.salary " +
+                        "FROM users u " +
+                        "JOIN employees e ON u.id = e.id " +
+                        "JOIN crew_members c ON u.id = c.id";
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql);
+            
+            while (rs.next()) {
+                ObservableList<String> row = FXCollections.observableArrayList();
+                row.add(rs.getString("id"));
+                row.add(rs.getString("name"));
+                row.add(rs.getString("email"));
+                row.add(rs.getString("employee_id"));
+                row.add(rs.getString("position"));
+                row.add(rs.getString("languages_spoken"));
+                row.add("$" + rs.getString("salary"));
+                table.getItems().add(row);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    // ========== PASSENGER MANAGEMENT ==========
+    private Tab createPassengerTab() {
+        Tab tab = new Tab("Passenger Management");
+        tab.setClosable(false);
+        
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(10));
+        
+        // Form fields
+        TextField nameField = new TextField();
+        nameField.setPromptText("Name");
+        
+        TextField emailField = new TextField();
+        emailField.setPromptText("Email");
+        
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Password");
+        
+        TextField phoneField = new TextField();
+        phoneField.setPromptText("Phone");
+        
+        TextField passportField = new TextField();
+        passportField.setPromptText("Passport Number (e.g., AB123456C)");
+        
+        TextField nationalityField = new TextField();
+        nationalityField.setPromptText("Nationality");
+        
+        Button addBtn = new Button("Add Passenger");
+        Button refreshBtn = new Button("Refresh List");
+        Label statusLabel = new Label();
+        
+        // TableView
+        TableView<ObservableList<String>> table = new TableView<>();
+        setupPassengerTable(table);
+        
+        addBtn.setOnAction(e -> {
+            try {
+                Connection conn = DBConnection.getConnection();
+                conn.setAutoCommit(false);
+                
+                // Validate using Passenger class (OOP)
+                Passenger passenger = new Passenger(
+                    nameField.getText(),
+                    emailField.getText(),
+                    passwordField.getText(),
+                    phoneField.getText(),
+                    passportField.getText(),
+                    nationalityField.getText()
+                );
+                
+                // Insert into users table
+                String userSql = "INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, 'PASSENGER')";
+                PreparedStatement userPs = conn.prepareStatement(userSql, Statement.RETURN_GENERATED_KEYS);
+                userPs.setString(1, passenger.getName());
+                userPs.setString(2, passenger.getEmail());
+                userPs.setString(3, passenger.getPassword());
+                userPs.setString(4, passenger.getPhone());
+                userPs.executeUpdate();
+                
+                ResultSet rs = userPs.getGeneratedKeys();
+                int userId = 0;
+                if (rs.next()) {
+                    userId = rs.getInt(1);
+                }
+                
+                // Insert into passengers table
+                String passSql = "INSERT INTO passengers (id, passport_number, nationality) VALUES (?, ?, ?)";
+                PreparedStatement passPs = conn.prepareStatement(passSql);
+                passPs.setInt(1, userId);
+                passPs.setString(2, passenger.getPassportNumber());
+                passPs.setString(3, passenger.getNationality());
+                passPs.executeUpdate();
+                
+                conn.commit();
+                conn.setAutoCommit(true);
+                
+                statusLabel.setText("✅ Passenger added successfully!");
+                statusLabel.setStyle("-fx-text-fill: green;");
+                refreshPassengerTable(table);
+                
+                // Clear fields
+                nameField.clear();
+                emailField.clear();
+                passwordField.clear();
+                phoneField.clear();
+                passportField.clear();
+                nationalityField.clear();
+                
+            } catch (IllegalArgumentException ex) {
+                statusLabel.setText("❌ Validation Error: " + ex.getMessage());
+                statusLabel.setStyle("-fx-text-fill: red;");
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                statusLabel.setText("❌ Error: " + ex.getMessage());
+                statusLabel.setStyle("-fx-text-fill: red;");
+                try {
+                    DBConnection.getConnection().rollback();
+                } catch (SQLException e1) {
+                    e1.printStackTrace();
+                }
+            }
+        });
+        
+        refreshBtn.setOnAction(e -> refreshPassengerTable(table));
+        
+        HBox buttonBox = new HBox(10, addBtn, refreshBtn);
+        
+        content.getChildren().addAll(
+            new Label("Add New Passenger:"),
+            nameField, emailField, passwordField, phoneField,
+            passportField, nationalityField,
+            buttonBox, statusLabel,
+            new Separator(),
+            new Label("Passenger List:"),
+            table
+        );
+        
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        tab.setContent(scroll);
+        refreshPassengerTable(table);
+        return tab;
+    }
+    
+    private void setupPassengerTable(TableView<ObservableList<String>> table) {
+        String[] columns = {"ID", "Name", "Email", "Phone", "Passport", "Nationality"};
+        for (int i = 0; i < columns.length; i++) {
+            final int colIndex = i;
+            TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
+            column.setCellValueFactory(param -> 
+                new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
+            table.getColumns().add(column);
+        }
+    }
+    
+    private void refreshPassengerTable(TableView<ObservableList<String>> table) {
+        table.getItems().clear();
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT u.id, u.name, u.email, u.phone, p.passport_number, p.nationality " +
+                        "FROM users u " +
+                        "JOIN passengers p ON u.id = p.id";
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql);
+            
+            while (rs.next()) {
+                ObservableList<String> row = FXCollections.observableArrayList();
+                row.add(rs.getString("id"));
+                row.add(rs.getString("name"));
+                row.add(rs.getString("email"));
+                row.add(rs.getString("phone"));
+                row.add(rs.getString("passport_number"));
+                row.add(rs.getString("nationality"));
+                table.getItems().add(row);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    // ========== FLIGHT MANAGEMENT ==========
+    private Tab createFlightTab() {
+        Tab tab = new Tab("Flight Management");
+        tab.setClosable(false);
+        
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(10));
+        
+        // Form fields
+        TextField flightNumField = new TextField();
+        flightNumField.setPromptText("Flight Number (e.g., AA123)");
+        
+        TextField depAirportField = new TextField();
+        depAirportField.setPromptText("Departure Airport (e.g., JFK)");
+        
+        TextField arrAirportField = new TextField();
+        arrAirportField.setPromptText("Arrival Airport (e.g., LAX)");
+        
+        DatePicker datePicker = new DatePicker();
+        datePicker.setPromptText("Flight Date");
+        
+        TextField depTimeField = new TextField();
+        depTimeField.setPromptText("Departure Time (HH:MM)");
+        
+        TextField arrTimeField = new TextField();
+        arrTimeField.setPromptText("Arrival Time (HH:MM)");
+        
+        ComboBox<String> aircraftBox = new ComboBox<>();
+        aircraftBox.setPromptText("Select Aircraft");
+        loadAircraftList(aircraftBox);
+        
+        ComboBox<String> pilotBox = new ComboBox<>();
+        pilotBox.setPromptText("Select Pilot");
+        loadPilotList(pilotBox);
+        
+        ComboBox<String> statusBox = new ComboBox<>();
+        statusBox.getItems().addAll("Scheduled", "Boarding", "In Flight", "Landed", "Cancelled");
+        statusBox.setValue("Scheduled");
+        
+        Button addBtn = new Button("Create Flight");
+        Button assignCrewBtn = new Button("Assign Crew to Flight");
+        Button refreshBtn = new Button("Refresh List");
+        Label statusLabel = new Label();
+        
+        // TableView
+        TableView<ObservableList<String>> table = new TableView<>();
+        setupFlightTable(table);
+        
+        addBtn.setOnAction(e -> {
+            try {
+                // Get aircraft ID and capacity
+                int aircraftId = Integer.parseInt(aircraftBox.getValue().split(" - ")[0]);
+                int pilotId = Integer.parseInt(pilotBox.getValue().split(" - ")[0]);
+                
+                Connection conn = DBConnection.getConnection();
+                
+                // Get aircraft capacity
+                String capacitySql = "SELECT capacity FROM aircraft WHERE id = ?";
+                PreparedStatement capacityPs = conn.prepareStatement(capacitySql);
+                capacityPs.setInt(1, aircraftId);
+                ResultSet capacityRs = capacityPs.executeQuery();
+                int capacity = 0;
+                if (capacityRs.next()) {
+                    capacity = capacityRs.getInt("capacity");
+                }
+                
+                // Insert flight
+                String sql = "INSERT INTO flights (flight_number, departure_airport, arrival_airport, " +
+                            "departure_time, arrival_time, flight_date, aircraft_id, pilot_id, status, available_seats) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ps.setString(1, flightNumField.getText().toUpperCase());
+                ps.setString(2, depAirportField.getText().toUpperCase());
+                ps.setString(3, arrAirportField.getText().toUpperCase());
+                ps.setString(4, depTimeField.getText());
+                ps.setString(5, arrTimeField.getText());
+                ps.setString(6, datePicker.getValue().toString());
+                ps.setInt(7, aircraftId);
+                ps.setInt(8, pilotId);
+                ps.setString(9, statusBox.getValue());
+                ps.setInt(10, capacity);
+                ps.executeUpdate();
+                
+                statusLabel.setText("✅ Flight created successfully!");
+                statusLabel.setStyle("-fx-text-fill: green;");
+                refreshFlightTable(table);
+                
+                // Clear fields
+                flightNumField.clear();
+                depAirportField.clear();
+                arrAirportField.clear();
+                depTimeField.clear();
+                arrTimeField.clear();
+                
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                statusLabel.setText("❌ Error: " + ex.getMessage());
+                statusLabel.setStyle("-fx-text-fill: red;");
+            }
+        });
+        
+        assignCrewBtn.setOnAction(e -> openCrewAssignmentWindow(statusLabel, table));
+        
+        refreshBtn.setOnAction(e -> refreshFlightTable(table));
+        
+        HBox buttonBox = new HBox(10, addBtn, assignCrewBtn, refreshBtn);
+        
+        content.getChildren().addAll(
+            new Label("Create New Flight:"),
+            flightNumField, depAirportField, arrAirportField,
+            datePicker, depTimeField, arrTimeField,
+            aircraftBox, pilotBox, statusBox,
+            buttonBox, statusLabel,
+            new Separator(),
+            new Label("Flight List:"),
+            table
+        );
+        
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        tab.setContent(scroll);
+        refreshFlightTable(table);
+        return tab;
+    }
+    
+    private void setupFlightTable(TableView<ObservableList<String>> table) {
+        String[] columns = {"ID", "Flight #", "From", "To", "Date", "Departure", "Aircraft", "Pilot", "Seats", "Status"};
+        for (int i = 0; i < columns.length; i++) {
+            final int colIndex = i;
+            TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
+            column.setCellValueFactory(param -> 
+                new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
+            table.getColumns().add(column);
+        }
+    }
+    
+    private void refreshFlightTable(TableView<ObservableList<String>> table) {
+        table.getItems().clear();
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT f.id, f.flight_number, f.departure_airport, f.arrival_airport, f.flight_date, " +
+                        "f.departure_time, a.registration_number, u.name as pilot_name, f.available_seats, f.status " +
+                        "FROM flights f " +
+                        "LEFT JOIN aircraft a ON f.aircraft_id = a.id " +
+                        "LEFT JOIN users u ON f.pilot_id = u.id " +
+                        "ORDER BY f.flight_date DESC";
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql);
+            
+            while (rs.next()) {
+                ObservableList<String> row = FXCollections.observableArrayList();
+                row.add(rs.getString("id"));
+                row.add(rs.getString("flight_number"));
+                row.add(rs.getString("departure_airport"));
+                row.add(rs.getString("arrival_airport"));
+                row.add(rs.getString("flight_date"));
+                row.add(rs.getString("departure_time"));
+                row.add(rs.getString("registration_number") != null ? rs.getString("registration_number") : "N/A");
+                row.add(rs.getString("pilot_name") != null ? rs.getString("pilot_name") : "N/A");
+                row.add(rs.getString("available_seats"));
+                row.add(rs.getString("status"));
+                table.getItems().add(row);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private void loadAircraftList(ComboBox<String> box) {
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT id, registration_number, model FROM aircraft";
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql);
+            
+            while (rs.next()) {
+                String item = rs.getInt("id") + " - " + rs.getString("registration_number") + " (" + rs.getString("model") + ")";
+                box.getItems().add(item);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private void loadPilotList(ComboBox<String> box) {
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT u.id, u.name, p.license_number FROM users u JOIN pilots p ON u.id = p.id";
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql);
+            
+            while (rs.next()) {
+                String item = rs.getInt("id") + " - " + rs.getString("name") + " (" + rs.getString("license_number") + ")";
+                box.getItems().add(item);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private void openCrewAssignmentWindow(Label statusLabel, TableView<ObservableList<String>> flightTable) {
+        Stage assignWindow = new Stage();
+        assignWindow.setTitle("Assign Crew to Flight");
+        
+        VBox layout = new VBox(15);
+        layout.setPadding(new Insets(20));
+        
+        ComboBox<String> flightBox = new ComboBox<>();
+        flightBox.setPromptText("Select Flight");
+        flightBox.setPrefWidth(400);
+        
+        ListView<String> crewList = new ListView<>();
+        crewList.setPrefHeight(200);
+        crewList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        
+        Button assignBtn = new Button("Assign Selected Crew");
+        Label assignStatus = new Label();
+        
+        // Load flights
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT id, flight_number, departure_airport, arrival_airport, flight_date FROM flights";
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql);
+            
+            while (rs.next()) {
+                String item = rs.getInt("id") + " - " + rs.getString("flight_number") + 
+                             " (" + rs.getString("departure_airport") + " → " + 
+                             rs.getString("arrival_airport") + " on " + rs.getString("flight_date") + ")";
+                flightBox.getItems().add(item);
+            }
+            
+            // Load crew members
+            sql = "SELECT u.id, u.name, c.position FROM users u JOIN crew_members c ON u.id = c.id";
+            rs = stmt.executeQuery(sql);
+            
+            while (rs.next()) {
+                String item = rs.getInt("id") + " - " + rs.getString("name") + " (" + rs.getString("position") + ")";
+                crewList.getItems().add(item);
+            }
+            
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        
+        assignBtn.setOnAction(e -> {
+            try {
+                if (flightBox.getValue() == null || crewList.getSelectionModel().getSelectedItems().isEmpty()) {
+                    assignStatus.setText("Please select flight and crew members");
+                    assignStatus.setStyle("-fx-text-fill: red;");
+                    return;
+                }
+                
+                int flightId = Integer.parseInt(flightBox.getValue().split(" - ")[0]);
+                Connection conn = DBConnection.getConnection();
+                
+                for (String crew : crewList.getSelectionModel().getSelectedItems()) {
+                    int crewId = Integer.parseInt(crew.split(" - ")[0]);
+                    
+                    String sql = "INSERT IGNORE INTO flight_crew (flight_id, crew_member_id) VALUES (?, ?)";
+                    PreparedStatement ps = conn.prepareStatement(sql);
+                    ps.setInt(1, flightId);
+                    ps.setInt(2, crewId);
+                    ps.executeUpdate();
+                }
+                
+                assignStatus.setText("✅ Crew assigned successfully!");
+                assignStatus.setStyle("-fx-text-fill: green;");
+                statusLabel.setText("✅ Crew assigned to flight");
+                statusLabel.setStyle("-fx-text-fill: green;");
+                
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                assignStatus.setText("❌ Error: " + ex.getMessage());
+                assignStatus.setStyle("-fx-text-fill: red;");
+            }
+        });
+        
+        layout.getChildren().addAll(
+            new Label("Select Flight:"), flightBox,
+            new Label("Select Crew Members (hold Ctrl for multiple):"), crewList,
+            assignBtn, assignStatus
+        );
+        
+        Scene scene = new Scene(layout, 500, 450);
+        assignWindow.setScene(scene);
+        assignWindow.show();
+    }
+    
+    // ========== PAYCHECK GENERATION ==========
+    private Tab createPaycheckTab() {
+        Tab tab = new Tab("Generate Paychecks");
+        tab.setClosable(false);
+        
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        
+        Label title = new Label("Generate Employee Paychecks");
+        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        
+        ComboBox<String> employeeBox = new ComboBox<>();
+        employeeBox.setPromptText("Select Employee");
+        employeeBox.setPrefWidth(400);
+        
+        Button generateBtn = new Button("Generate Paycheck");
+        generateBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-padding: 10px 20px;");
+        
+        Label statusLabel = new Label();
+        
+        // Load employees
+        loadEmployees(employeeBox);
+        
+        generateBtn.setOnAction(e -> {
+            if (employeeBox.getValue() == null) {
+                statusLabel.setText("Please select an employee");
+                statusLabel.setStyle("-fx-text-fill: red;");
+                return;
+            }
+            
+            try {
+                String selected = employeeBox.getValue();
+                int empId = Integer.parseInt(selected.split(" - ")[0]);
+                generatePaycheck(empId, statusLabel);
+            } catch (Exception ex) {
+                statusLabel.setText("Error: " + ex.getMessage());
+                statusLabel.setStyle("-fx-text-fill: red;");
+            }
+        });
+        
+        content.getChildren().addAll(title, employeeBox, generateBtn, statusLabel);
+        tab.setContent(content);
+        return tab;
+    }
+    
+    private void loadEmployees(ComboBox<String> box) {
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT u.id, u.name, e.employee_id FROM users u JOIN employees e ON u.id = e.id";
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql);
+            
+            while (rs.next()) {
+                String item = rs.getInt("id") + " - " + rs.getString("name") + " (" + rs.getString("employee_id") + ")";
+                box.getItems().add(item);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private void generatePaycheck(int empId, Label statusLabel) {
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT u.name, e.employee_id, e.salary, e.bank_account " +
+                        "FROM users u JOIN employees e ON u.id = e.id WHERE u.id = ?";
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, empId);
+            ResultSet rs = ps.executeQuery();
+            
+            if (rs.next()) {
+                String name = rs.getString("name");
+                String empIdStr = rs.getString("employee_id");
+                double salary = rs.getDouble("salary");
+                String bankAccount = rs.getString("bank_account");
+                
+                // Generate paycheck file
+                String fileName = "Paycheck_" + empIdStr + "_" + System.currentTimeMillis() + ".txt";
+                PrintWriter writer = new PrintWriter(new FileWriter(fileName));
+                
+                writer.println("═══════════════════════════════════════════════════");
+                writer.println("                  EMPLOYEE PAYCHECK");
+                writer.println("═══════════════════════════════════════════════════");
+                writer.println();
+                writer.println("  Employee Name: " + name);
+                writer.println("  Employee ID:   " + empIdStr);
+                writer.println("  Bank Account:  " + bankAccount);
+                writer.println();
+                writer.println("  Gross Salary:  $" + String.format("%.2f", salary));
+                writer.println("  Deductions:    $" + String.format("%.2f", salary * 0.15));
+                writer.println("  Net Pay:       $" + String.format("%.2f", salary * 0.85));
+                writer.println();
+                writer.println("  Pay Date:      " + new java.util.Date());
+                writer.println();
+                writer.println("═══════════════════════════════════════════════════");
+                writer.println("         Thank you for your service!");
+                writer.println("═══════════════════════════════════════════════════");
+                
+                writer.close();
+                
+                // Save to database
+                String insertSql = "INSERT INTO paychecks (employee_id, pay_period_start, pay_period_end, amount, file_path) " +
+                                  "VALUES (?, CURDATE() - INTERVAL 1 MONTH, CURDATE(), ?, ?)";
+                PreparedStatement insertPs = conn.prepareStatement(insertSql);
+                insertPs.setInt(1, empId);
+                insertPs.setDouble(2, salary * 0.85);
+                insertPs.setString(3, fileName);
+                insertPs.executeUpdate();
+                
+                statusLabel.setText("✅ Paycheck generated: " + fileName);
+                statusLabel.setStyle("-fx-text-fill: green;");
+            }
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            statusLabel.setText("Error: " + e.getMessage());
+            statusLabel.setStyle("-fx-text-fill: red;");
+        }
+    }
+}
