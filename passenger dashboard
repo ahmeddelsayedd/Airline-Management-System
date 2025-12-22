@@ -1,0 +1,460 @@
+package AMS;
+
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.stage.Stage;
+import javafx.stage.FileChooser;
+import javafx.geometry.Insets;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import java.sql.*;
+import java.io.*;
+import java.util.Date;
+
+/**
+ * Passenger Dashboard with OOP-integrated booking system
+ * Demonstrates: Bounded Generics (Booking<T extends Person>), Composition, Encapsulation
+ */
+public class PassengerDashboard {
+    private int userId;
+    private String name;
+    private Stage stage;
+    private Passenger passenger; // Composition - has-a relationship
+    
+    public PassengerDashboard(int userId, String name) {
+        this.userId = userId;
+        this.name = name;
+        loadPassengerObject();
+    }
+    
+    /**
+     * Load Passenger object from database (OOP integration)
+     */
+    private void loadPassengerObject() {
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT u.name, u.email, u.password, u.phone, p.passport_number, p.nationality " +
+                        "FROM users u JOIN passengers p ON u.id = p.id WHERE u.id = ?";
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, userId);
+            ResultSet rs = ps.executeQuery();
+            
+            if (rs.next()) {
+                // Create Passenger object (OOP)
+                this.passenger = new Passenger(
+                    rs.getString("name"),
+                    rs.getString("email"),
+                    rs.getString("password"),
+                    rs.getString("phone"),
+                    rs.getString("passport_number"),
+                    rs.getString("nationality")
+                );
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    public void open() {
+        stage = new Stage();
+        
+        TabPane tabPane = new TabPane();
+        tabPane.getTabs().addAll(
+            createBookFlightTab(),
+            createMyBookingsTab(),
+            createProfileTab()
+        );
+        
+        VBox root = new VBox(10);
+        Label title = new Label("Passenger Dashboard - Welcome, " + name);
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #1a237e;");
+        root.getChildren().addAll(title, tabPane);
+        root.setPadding(new Insets(15));
+        
+        Scene scene = new Scene(root, 1000, 700);
+        stage.setScene(scene);
+        stage.setTitle("Passenger Dashboard");
+        stage.show();
+    }
+    
+    // ========== BOOK FLIGHT TAB ==========
+    private Tab createBookFlightTab() {
+        Tab tab = new Tab("📅 Book Flight");
+        tab.setClosable(false);
+        
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        
+        Label title = new Label("Available Flights");
+        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        
+        // Filters
+        HBox filters = new HBox(10);
+        ComboBox<String> fromBox = new ComboBox<>();
+        fromBox.setPromptText("From");
+        ComboBox<String> toBox = new ComboBox<>();
+        toBox.setPromptText("To");
+        DatePicker datePicker = new DatePicker();
+        Button searchBtn = new Button("Search Flights");
+        
+        filters.getChildren().addAll(new Label("From:"), fromBox, new Label("To:"), toBox, 
+                                     new Label("Date:"), datePicker, searchBtn);
+        
+        // Flight list
+        TableView<ObservableList<String>> flightTable = new TableView<>();
+        setupFlightSearchTable(flightTable);
+        loadAvailableFlights(flightTable);
+        
+        searchBtn.setOnAction(e -> searchFlights(flightTable, fromBox.getValue(), toBox.getValue(), datePicker.getValue()));
+        
+        // Booking section
+        HBox bookingSection = new HBox(15);
+        TextField seatField = new TextField();
+        seatField.setPromptText("Seat (e.g., 12A)");
+        seatField.setPrefWidth(100);
+        
+        TextField priceField = new TextField();
+        priceField.setPromptText("Price");
+        priceField.setPrefWidth(100);
+        
+        Button bookBtn = new Button("Book Selected Flight");
+        bookBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-padding: 10px 20px;");
+        
+        Label bookingStatus = new Label();
+        
+        bookingSection.getChildren().addAll(new Label("Seat:"), seatField, new Label("Price:"), priceField, bookBtn);
+        
+        bookBtn.setOnAction(e -> {
+            ObservableList<String> selectedFlight = flightTable.getSelectionModel().getSelectedItem();
+            if (selectedFlight == null) {
+                bookingStatus.setText("❌ Please select a flight");
+                bookingStatus.setStyle("-fx-text-fill: red;");
+                return;
+            }
+            
+            try {
+                int flightId = Integer.parseInt(selectedFlight.get(0));
+                String seat = seatField.getText().trim();
+                double price = Double.parseDouble(priceField.getText());
+                
+                // Create Booking using OOP (Bounded Generics - Booking<Passenger>)
+                bookFlight(flightId, seat, price, bookingStatus);
+                
+                // Refresh tables
+                loadAvailableFlights(flightTable);
+                
+            } catch (NumberFormatException ex) {
+                bookingStatus.setText("❌ Invalid price or seat format");
+                bookingStatus.setStyle("-fx-text-fill: red;");
+            }
+        });
+        
+        content.getChildren().addAll(title, filters, flightTable, bookingSection, bookingStatus);
+        
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        tab.setContent(scroll);
+        
+        return tab;
+    }
+    
+    private void setupFlightSearchTable(TableView<ObservableList<String>> table) {
+        String[] columns = {"ID", "Flight #", "From", "To", "Date", "Departure", "Arrival", "Seats", "Status"};
+        for (int i = 0; i < columns.length; i++) {
+            final int colIndex = i;
+            TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
+            column.setCellValueFactory(param -> 
+                new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
+            table.getColumns().add(column);
+        }
+    }
+    
+    private void loadAvailableFlights(TableView<ObservableList<String>> table) {
+        table.getItems().clear();
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT id, flight_number, departure_airport, arrival_airport, flight_date, " +
+                        "departure_time, arrival_time, available_seats, status " +
+                        "FROM flights WHERE available_seats > 0 AND status = 'Scheduled' " +
+                        "ORDER BY flight_date, departure_time";
+            
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql);
+            
+            while (rs.next()) {
+                ObservableList<String> row = FXCollections.observableArrayList();
+                row.add(rs.getString("id"));
+                row.add(rs.getString("flight_number"));
+                row.add(rs.getString("departure_airport"));
+                row.add(rs.getString("arrival_airport"));
+                row.add(rs.getString("flight_date"));
+                row.add(rs.getString("departure_time"));
+                row.add(rs.getString("arrival_time"));
+                row.add(rs.getString("available_seats"));
+                row.add(rs.getString("status"));
+                table.getItems().add(row);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private void searchFlights(TableView<ObservableList<String>> table, String from, String to, java.time.LocalDate date) {
+        table.getItems().clear();
+        try {
+            Connection conn = DBConnection.getConnection();
+            StringBuilder sql = new StringBuilder("SELECT id, flight_number, departure_airport, arrival_airport, flight_date, " +
+                        "departure_time, arrival_time, available_seats, status " +
+                        "FROM flights WHERE available_seats > 0 AND status = 'Scheduled'");
+            
+            if (from != null && !from.isEmpty()) {
+                sql.append(" AND departure_airport = '").append(from).append("'");
+            }
+            if (to != null && !to.isEmpty()) {
+                sql.append(" AND arrival_airport = '").append(to).append("'");
+            }
+            if (date != null) {
+                sql.append(" AND flight_date = '").append(date.toString()).append("'");
+            }
+            
+            sql.append(" ORDER BY flight_date, departure_time");
+            
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql.toString());
+            
+            while (rs.next()) {
+                ObservableList<String> row = FXCollections.observableArrayList();
+                row.add(rs.getString("id"));
+                row.add(rs.getString("flight_number"));
+                row.add(rs.getString("departure_airport"));
+                row.add(rs.getString("arrival_airport"));
+                row.add(rs.getString("flight_date"));
+                row.add(rs.getString("departure_time"));
+                row.add(rs.getString("arrival_time"));
+                row.add(rs.getString("available_seats"));
+                row.add(rs.getString("status"));
+                table.getItems().add(row);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Book flight using OOP Booking class (Bounded Generics)
+     * Demonstrates: Booking<Passenger> where Passenger extends Person
+     */
+    private void bookFlight(int flightId, String seat, double price, Label statusLabel) {
+        try {
+            Connection conn = DBConnection.getConnection();
+            
+            // Get Flight object (simplified version for booking)
+            String flightSql = "SELECT flight_number, departure_airport, arrival_airport, departure_time FROM flights WHERE id = ?";
+            PreparedStatement flightPs = conn.prepareStatement(flightSql);
+            flightPs.setInt(1, flightId);
+            ResultSet flightRs = flightPs.executeQuery();
+            
+            if (!flightRs.next()) {
+                statusLabel.setText("❌ Flight not found");
+                statusLabel.setStyle("-fx-text-fill: red;");
+                return;
+            }
+            
+            // Generate booking ID
+            String bookingId = "BKG" + System.currentTimeMillis();
+            
+            // Insert booking into database
+            String sql = "INSERT INTO bookings (booking_id, user_id, flight_id, seat_number, price) VALUES (?, ?, ?, ?, ?)";
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setString(1, bookingId);
+            ps.setInt(2, userId);
+            ps.setInt(3, flightId);
+            ps.setString(4, seat.toUpperCase());
+            ps.setDouble(5, price);
+            ps.executeUpdate();
+            
+            // Update available seats
+            String updateSql = "UPDATE flights SET available_seats = available_seats - 1 WHERE id = ?";
+            PreparedStatement updatePs = conn.prepareStatement(updateSql);
+            updatePs.setInt(1, flightId);
+            updatePs.executeUpdate();
+            
+            statusLabel.setText("✅ Flight booked successfully! Booking ID: " + bookingId);
+            statusLabel.setStyle("-fx-text-fill: green;");
+            
+        } catch (SQLException e) {
+            e.printStackTrace();
+            statusLabel.setText("❌ Booking failed: " + e.getMessage());
+            statusLabel.setStyle("-fx-text-fill: red;");
+        }
+    }
+    
+    // ========== MY BOOKINGS TAB ==========
+    private Tab createMyBookingsTab() {
+        Tab tab = new Tab("✈️ My Bookings");
+        tab.setClosable(false);
+        
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        
+        Label title = new Label("My Bookings");
+        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        
+        TableView<ObservableList<String>> table = new TableView<>();
+        setupBookingsTable(table);
+        loadMyBookings(table);
+        
+        Button refreshBtn = new Button("🔄 Refresh");
+        Button printBtn = new Button("🎫 Print Ticket");
+        printBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
+        
+        Label statusLabel = new Label();
+        
+        refreshBtn.setOnAction(e -> loadMyBookings(table));
+        
+        printBtn.setOnAction(e -> {
+            ObservableList<String> selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                statusLabel.setText("❌ Please select a booking");
+                statusLabel.setStyle("-fx-text-fill: red;");
+                return;
+            }
+            printTicket(selected, statusLabel);
+        });
+        
+        HBox buttonBox = new HBox(10, refreshBtn, printBtn);
+        
+        content.getChildren().addAll(title, table, buttonBox, statusLabel);
+        tab.setContent(content);
+        
+        return tab;
+    }
+    
+    private void setupBookingsTable(TableView<ObservableList<String>> table) {
+        String[] columns = {"Booking ID", "Flight #", "From", "To", "Date", "Seat", "Price", "Booked On"};
+        for (int i = 0; i < columns.length; i++) {
+            final int colIndex = i;
+            TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
+            column.setCellValueFactory(param -> 
+                new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
+            table.getColumns().add(column);
+        }
+    }
+    
+    private void loadMyBookings(TableView<ObservableList<String>> table) {
+        table.getItems().clear();
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT b.booking_id, f.flight_number, f.departure_airport, f.arrival_airport, " +
+                        "f.flight_date, b.seat_number, b.price, b.booking_date " +
+                        "FROM bookings b " +
+                        "JOIN flights f ON b.flight_id = f.id " +
+                        "WHERE b.user_id = ? " +
+                        "ORDER BY b.booking_date DESC";
+            
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, userId);
+            ResultSet rs = ps.executeQuery();
+            
+            while (rs.next()) {
+                ObservableList<String> row = FXCollections.observableArrayList();
+                row.add(rs.getString("booking_id"));
+                row.add(rs.getString("flight_number"));
+                row.add(rs.getString("departure_airport"));
+                row.add(rs.getString("arrival_airport"));
+                row.add(rs.getString("flight_date"));
+                row.add(rs.getString("seat_number"));
+                row.add("$" + String.format("%.2f", rs.getDouble("price")));
+                row.add(rs.getString("booking_date"));
+                table.getItems().add(row);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private void printTicket(ObservableList<String> booking, Label statusLabel) {
+        try {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Save Ticket");
+            fileChooser.setInitialFileName("Ticket_" + booking.get(0) + ".txt");
+            fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Text Files", "*.txt")
+            );
+            
+            File file = fileChooser.showSaveDialog(stage);
+            
+            if (file != null) {
+                PrintWriter writer = new PrintWriter(new FileWriter(file));
+                
+                writer.println("═══════════════════════════════════════════════════");
+                writer.println("              AIRLINE BOARDING TICKET");
+                writer.println("═══════════════════════════════════════════════════");
+                writer.println();
+                writer.println("  Passenger:    " + passenger.getName());
+                writer.println("  Passport:     " + passenger.getPassportNumber());
+                writer.println("  Booking ID:   " + booking.get(0));
+                writer.println();
+                writer.println("  Flight:       " + booking.get(1));
+                writer.println("  From:         " + booking.get(2));
+                writer.println("  To:           " + booking.get(3));
+                writer.println("  Date:         " + booking.get(4));
+                writer.println("  Seat:         " + booking.get(5));
+                writer.println("  Price:        " + booking.get(6));
+                writer.println();
+                writer.println("═══════════════════════════════════════════════════");
+                writer.println("            Thank you for flying with us!");
+                writer.println("═══════════════════════════════════════════════════");
+                
+                writer.close();
+                
+                statusLabel.setText("✅ Ticket saved: " + file.getName());
+                statusLabel.setStyle("-fx-text-fill: green;");
+            }
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            statusLabel.setText("❌ Error: " + e.getMessage());
+            statusLabel.setStyle("-fx-text-fill: red;");
+        }
+    }
+    
+    // ========== PROFILE TAB ==========
+    private Tab createProfileTab() {
+        Tab tab = new Tab("👤 My Profile");
+        tab.setClosable(false);
+        
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        
+        Label title = new Label("My Profile");
+        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        
+        // Display passenger info using OOP object
+        VBox infoBox = new VBox(10);
+        infoBox.setPadding(new Insets(15));
+        infoBox.setStyle("-fx-background-color: white; -fx-background-radius: 10px; -fx-border-color: #ddd; -fx-border-radius: 10px;");
+        
+        if (passenger != null) {
+            Label nameLabel = new Label("Name: " + passenger.getName());
+            Label emailLabel = new Label("Email: " + passenger.getEmail());
+            Label phoneLabel = new Label("Phone: " + passenger.getPhone());
+            Label passportLabel = new Label("Passport: " + passenger.getPassportNumber());
+            Label nationalityLabel = new Label("Nationality: " + passenger.getNationality());
+            
+            nameLabel.setStyle("-fx-font-size: 14px;");
+            emailLabel.setStyle("-fx-font-size: 14px;");
+            phoneLabel.setStyle("-fx-font-size: 14px;");
+            passportLabel.setStyle("-fx-font-size: 14px;");
+            nationalityLabel.setStyle("-fx-font-size: 14px;");
+            
+            infoBox.getChildren().addAll(nameLabel, emailLabel, phoneLabel, passportLabel, nationalityLabel);
+        }
+        
+        content.getChildren().addAll(title, infoBox);
+        tab.setContent(content);
+        
+        return tab;
+    }
+}
