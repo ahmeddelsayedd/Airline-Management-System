@@ -3,12 +3,13 @@ package AMS;
 import java.util.Date;
 
 /**
- * Booking class demonstrating generics and polymorphism.
- * @param <T> Type of booking (could be Passenger or other types in future)
+ * Booking class demonstrating BOUNDED GENERICS and polymorphism.
+ * @param <T> Type of booking - MUST extend Person class
+ * This ensures only Person or its subclasses (Passenger, Pilot, CrewMember) can book
  */
-public class Booking<T> {
+public class Booking<T extends Person> {
     private String bookingId;
-    private T bookedBy; // Generic type - demonstrates generics
+    private T bookedBy; // Generic type bounded to Person and its subclasses
     private Flight flight;
     private Date bookingDate;
     private double price;
@@ -18,16 +19,17 @@ public class Booking<T> {
     private static int bookingCounter = 10000;
     
     /**
-     * Constructor using generics
+     * Constructor using bounded generics
+     * Only accepts objects that extend Person class
      */
-public Booking(T bookedBy, Flight flight, double price, String seatNumber) {
-    this.bookingId = "BKG" + (bookingCounter++);
-    setBookedBy(bookedBy);    
-    setFlight(flight);   
-    this.bookingDate = new Date();
-    setPrice(price);        
-    setSeatNumber(seatNumber); 
-}
+    public Booking(T bookedBy, Flight flight, double price, String seatNumber) {
+        this.bookingId = "BKG" + (bookingCounter++);
+        setBookedBy(bookedBy);    
+        setFlight(flight);   
+        this.bookingDate = new Date();
+        setPrice(price);        
+        setSeatNumber(seatNumber); 
+    }
     
     // Getters and setters
     public String getBookingId() {
@@ -35,7 +37,7 @@ public Booking(T bookedBy, Flight flight, double price, String seatNumber) {
     }
     
     public T getBookedBy() {
-        return bookedBy; // Returns generic type - demonstrates dynamic binding
+        return bookedBy; // Returns Person or its subclass - demonstrates dynamic binding
     }
     
     public void setBookedBy(T bookedBy) {
@@ -79,8 +81,8 @@ public Booking(T bookedBy, Flight flight, double price, String seatNumber) {
         if (price <= 0) {
             throw new IllegalArgumentException("Price must be positive");
         }
-        if (price > 10000) {
-            throw new IllegalArgumentException("Price cannot exceed $10,000");
+        if (price > 100000) {
+            throw new IllegalArgumentException("Price cannot exceed $100,000");
         }
         this.price = price;
     }
@@ -100,12 +102,18 @@ public Booking(T bookedBy, Flight flight, double price, String seatNumber) {
         this.seatNumber = cleanSeat;
     }
     
+    /**
+     * Demonstrates polymorphism and dynamic binding
+     * The bookedBy.getName() will call the appropriate method at runtime
+     */
     public void displayBookingDetails() {
         System.out.println("=== Booking Details ===");
         System.out.println("Booking ID: " + bookingId);
-        System.out.println("Booked By: " + bookedBy); // Dynamic binding - toString() called at runtime
+        System.out.println("Booked By: " + bookedBy.getName() + " (ID: " + bookedBy.getId() + ")");
+        System.out.println("Email: " + bookedBy.getEmail());
         System.out.println("Flight: " + flight.getFlightNumber());
         System.out.println("From: " + flight.getDepartureAirport() + " to " + flight.getArrivalAirport());
+        System.out.println("Departure: " + flight.getDepartureTime());
         System.out.println("Seat: " + seatNumber);
         System.out.println("Price: $" + price);
         System.out.println("Booking Date: " + bookingDate);
@@ -114,6 +122,6 @@ public Booking(T bookedBy, Flight flight, double price, String seatNumber) {
     @Override
     public String toString() {
         return "Booking ID: " + bookingId + ", Flight: " + flight.getFlightNumber() + 
-               ", Passenger: " + bookedBy + ", Seat: " + seatNumber + ", Price: $" + price;
+               ", Passenger: " + bookedBy.getName() + ", Seat: " + seatNumber + ", Price: $" + price;
     }
 }
