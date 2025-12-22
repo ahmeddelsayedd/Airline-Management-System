@@ -112,3 +112,4 @@ this.rangeInKm = rangeInKm;
                ", Range: " + rangeInKm + "km";
     }
 }
+
