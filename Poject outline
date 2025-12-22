@@ -1,0 +1,401 @@
+
+# 🛩️ OOP-Integrated Airline Management System
+
+## Overview
+A complete airline management system that fully integrates Object-Oriented Programming concepts with GUI and database operations.
+
+## 🎯 OOP Concepts Implemented
+
+### 1. **Inheritance**
+- `Person` (abstract base class)
+  - `Passenger` extends Person
+  - `Pilot` extends Person + implements Employable
+  - `CrewMember` extends Person + implements Employable
+
+### 2. **Encapsulation**
+- All fields are private with getter/setter methods
+- Validation logic in setters (e.g., `setEmail()`, `setPassportNumber()`)
+- Data hiding principle applied throughout
+
+### 3. **Polymorphism**
+- **Method Overriding**: `toString()` overridden in all classes
+- **Runtime Polymorphism**: Login system creates appropriate dashboard based on role
+- **Interface Implementation**: `Employable` interface implemented differently by Pilot and CrewMember
+
+### 4. **Abstraction**
+- `Person` is abstract - cannot be instantiated directly
+- `Employable` interface defines contract for employees
+
+### 5. **Multiple Inheritance** (via Interface)
+- `Pilot` and `CrewMember` inherit from Person AND implement Employable
+- Demonstrates Java's solution to multiple inheritance problem
+
+### 6. **Bounded Generics**
+- `Booking<T extends Person>` class
+- Type parameter T must extend Person
+- Ensures type safety for bookings
+
+### 7. **Final Keyword**
+- `Pilot` class is `final` - cannot be extended
+- `id` field in Person is `final` - cannot be changed after initialization
+
+### 8. **Static Members**
+- `idCounter` in Person class (auto-generates unique IDs)
+- `STATUS_OPTIONS` in Flight class
+
+### 9. **Composition**
+- `PassengerDashboard` has-a `Passenger` object
+- `Flight` has-a `Aircraft` object
+- `Flight` has-a `Pilot` object
+
+### 10. **Design Patterns**
+- **Singleton Pattern**: DBConnection class
+- **Factory Pattern**: Dashboard creation based on role
+
+---
+
+## 📁 Project Structure
+
+```
+AMS/
+├── Person.java (Abstract base class)
+├── Passenger.java
+├── Pilot.java (Final class)
+├── CrewMember.java
+├── Employable.java (Interface)
+├── Aircraft.java
+├── Flight.java
+├── Booking.java (Bounded Generics)
+├── DBConnection.java (Singleton)
+├── Main.java
+├── UnifiedLogin.java
+├── AdminDashboard.java
+├── EmployeeDashboard.java
+└── PassengerDashboard.java
+```
+
+---
+
+## 🗄️ Database Schema
+
+### Tables:
+1. **users** - Base table for all person types
+2. **passengers** - Extends users (1:1)
+3. **employees** - Extends users (1:1) - implements Employable
+4. **pilots** - Extends employees (1:1)
+5. **crew_members** - Extends employees (1:1)
+6. **aircraft** - Standalone
+7. **flights** - Composition (has aircraft, pilot)
+8. **flight_crew** - Many-to-many (flights ↔ crew)
+9. **bookings** - Bounded generics implementation
+10. **paychecks** - Employee payroll
+
+---
+
+## 🚀 Setup Instructions
+
+### 1. Database Setup
+```sql
+-- Run the SQL schema file
+source oop-database-schema.sql
+
+-- Or manually in MySQL Workbench:
+-- Copy and execute the entire schema
+```
+
+### 2. Update DBConnection.java
+```java
+private static final String PASSWORD = "YOUR_MYSQL_PASSWORD";
+```
+
+### 3. Compile and Run
+```bash
+# Compile all files
+javac -d bin --module-path /path/to/javafx-sdk/lib --add-modules javafx.controls AMS/*.java
+
+# Run
+java --module-path /path/to/javafx-sdk/lib --add-modules javafx.controls -cp bin AMS.Main
+```
+
+---
+
+## 👥 Default Login Credentials
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | admin@airline.com | admin123 |
+| Pilot | pilot@airline.com | pilot123 |
+| Crew | crew@airline.com | crew123 |
+| Passenger | passenger@airline.com | pass123 |
+
+---
+
+## 🎛️ Admin Dashboard Features
+
+### 1. **Aircraft Management**
+- Add new aircraft (validates using Aircraft class)
+- View all aircraft
+- Aircraft object validates:
+  - Registration number format
+  - Valid manufacturer
+  - Capacity limits
+  - Range limits
+
+### 2. **Pilot Management**
+- Add pilots (creates Person → Employee → Pilot chain)
+- Validates:
+  - Employee ID format (EMP###)
+  - License number (LIC-######)
+  - Flight hours
+  - Department
+  - Salary range
+
+### 3. **Crew Member Management**
+- Add crew members
+- Select position from valid options
+- Languages spoken (multiple)
+- Bank account information
+
+### 4. **Passenger Management**
+- Add passengers (uses Passenger class validation)
+- Validates:
+  - Passport number (8-9 alphanumeric)
+  - Nationality
+  - Email format
+  - Phone number (10-15 digits)
+
+### 5. **Flight Management**
+- Create flights
+- Assign aircraft and pilot
+- Set departure/arrival times
+- Assign crew members to flights
+- Track flight status
+
+### 6. **Paycheck Generation**
+- Generate employee paychecks
+- Creates printable text file with:
+  - Employee name and ID
+  - Bank account
+  - Gross salary
+  - Deductions
+  - Net pay
+- Saves to database
+
+---
+
+## 👨‍✈️ Employee Dashboard (Pilots & Crew)
+
+### Features:
+- View personal information
+- See assigned flights
+- Flight details include:
+  - Flight number
+  - Route (from → to)
+  - Date and times
+  - Aircraft assignment
+  - Status
+
+### Demonstrates:
+- **Polymorphism**: Same dashboard class for different employee types
+- **Database joins**: Fetches data from multiple tables
+- **Encapsulation**: Displays data from OOP objects
+
+---
+
+## 🧳 Passenger Dashboard
+
+### 1. **Book Flight Tab**
+- Search available flights
+- Filter by:
+  - Departure airport
+  - Arrival airport
+  - Date
+- Book seats
+- Enter price
+- **OOP Integration**:
+  - Uses `Booking<Passenger>` bounded generic
+  - Validates seat format (e.g., "12A")
+  - Updates flight availability
+
+### 2. **My Bookings Tab**
+- View all bookings
+- Print tickets
+- Ticket includes:
+  - Passenger name (from Passenger object)
+  - Passport number
+  - Booking ID
+  - Flight details
+  - Seat and price
+
+### 3. **My Profile Tab**
+- Displays Passenger object data:
+  - Name
+  - Email
+  - Phone
+  - Passport
+  - Nationality
+
+---
+
+## 🔧 How OOP Concepts Connect to Database
+
+### 1. **Inheritance Mapping**
+```
+Person (users table)
+  ↓
+Passenger (users + passengers tables)
+Pilot (users + employees + pilots tables)
+CrewMember (users + employees + crew_members tables)
+```
+
+### 2. **Validation Flow**
+1. User enters data in GUI
+2. Data passed to OOP class constructor
+3. Setters validate data (throw IllegalArgumentException)
+4. If valid, data saved to database
+5. If invalid, error shown in GUI
+
+### 3. **Bounded Generics in Action**
+```java
+// In PassengerDashboard
+Booking<Passenger> booking = new Booking<>(
+    passenger,  // Must be Person or subclass
+    flight,
+    price,
+    seat
+);
+```
+
+### 4. **Polymorphism in Login**
+```java
+// Same login code handles all roles
+switch (role) {
+    case "ADMIN":
+        new AdminDashboard(userId, name).open();
+        break;
+    case "PILOT":
+    case "CREW":
+        new EmployeeDashboard(userId, name, role).open();
+        break;
+    case "PASSENGER":
+        new PassengerDashboard(userId, name).open();
+        break;
+}
+```
+
+---
+
+## 📊 Database-OOP Integration Examples
+
+### Example 1: Adding a Pilot
+```java
+// 1. Create OOP objects with validation
+Pilot pilot = new Pilot(
+    name, email, password, phone,  // Person fields
+    empId, salary, dept,            // Employable fields
+    license, hours, certs           // Pilot fields
+);
+
+// 2. If validation passes, insert to DB
+INSERT INTO users (name, email, password, phone, role) VALUES (...)
+INSERT INTO employees (id, employee_id, salary, ...) VALUES (...)
+INSERT INTO pilots (id, license_number, ...) VALUES (...)
+```
+
+### Example 2: Booking a Flight
+```java
+// 1. Load Passenger object from DB
+Passenger passenger = new Passenger(...);
+
+// 2. Create booking with bounded generic
+Booking<Passenger> booking = new Booking<>(passenger, flight, price, seat);
+
+// 3. Save to DB
+INSERT INTO bookings (booking_id, user_id, flight_id, ...) VALUES (...)
+UPDATE flights SET available_seats = available_seats - 1 WHERE id = ?
+```
+
+---
+
+## 🎓 Key Learning Points
+
+1. **OOP is not just theory** - Every class serves a real purpose
+2. **Validation belongs in setters** - Keeps data consistent
+3. **Inheritance models real relationships** - Pilot IS-A Person, Aircraft HAS-A capacity
+4. **Interfaces define contracts** - Employable ensures all employees have salary, department, etc.
+5. **Generics provide type safety** - Booking<Passenger> can't accidentally book with a Pilot object
+6. **Database mirrors OOP structure** - Inheritance = table relationships
+
+---
+
+## 🐛 Common Issues & Solutions
+
+### Issue: "Table doesn't exist"
+**Solution**: Run the database schema SQL file first
+
+### Issue: "Access denied for user"
+**Solution**: Update DBConnection.java with correct MySQL password
+
+### Issue: "Class not found"
+**Solution**: Ensure all .java files are in AMS package folder
+
+### Issue: "JavaFX components not found"
+**Solution**: Add JavaFX libraries to module path
+
+---
+
+## 📝 Adding New Features
+
+### To add a new person type:
+1. Create class extending Person
+2. Add corresponding database table
+3. Update UnifiedLogin switch statement
+4. Create new dashboard class
+
+### To add new employee type:
+1. Extend Person and implement Employable
+2. Add to employees table structure
+3. Add management tab in AdminDashboard
+
+---
+
+## 🎯 Assignment Completion Checklist
+
+- ✅ **Inheritance**: Person → Passenger/Pilot/Crew
+- ✅ **Encapsulation**: Private fields with getters/setters
+- ✅ **Polymorphism**: Overridden methods, runtime behavior
+- ✅ **Abstraction**: Abstract Person class, Employable interface
+- ✅ **Multiple Inheritance**: Via interface (Employable)
+- ✅ **Bounded Generics**: Booking<T extends Person>
+- ✅ **Final keyword**: Pilot class, id field
+- ✅ **Static members**: idCounter, STATUS_OPTIONS
+- ✅ **Composition**: Dashboard has-a Person object
+- ✅ **Database Integration**: All OOP classes map to DB
+- ✅ **GUI Integration**: All CRUD operations via GUI
+- ✅ **File I/O**: Paycheck and ticket generation
+
+---
+
+## 🚀 Future Enhancements
+
+1. Add flight cancellation with refunds
+2. Implement loyalty points system
+3. Add flight delay notifications
+4. Create reporting dashboard
+5. Add seat selection visual map
+6. Implement payment processing
+7. Add crew scheduling optimization
+
+---
+
+## 📞 Support
+
+For issues or questions:
+1. Check database connection
+2. Verify all classes compile
+3. Ensure JavaFX is properly configured
+4. Check MySQL is running
+
+---
+
+**Made with ❤️ using OOP principles and real-world airline management requirements**
