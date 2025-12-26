@@ -11,6 +11,7 @@ public class Main extends Application {
     
     @Override
     public void start(Stage primaryStage) {
+SoundManager.initialize();
         // Simply open the unified login window
         UnifiedLogin login = new UnifiedLogin();
         login.open();
