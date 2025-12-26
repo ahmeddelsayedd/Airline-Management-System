@@ -1,29 +1,42 @@
 package AMS;
 
-import javafx.scene.Scene;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
-import javafx.stage.Stage;
-import javafx.geometry.Insets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import java.sql.*;
-import java.io.*;
-import java.util.*;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
 
 public class AdminDashboard {
     private int adminId;
     private String adminName;
     private Stage stage;
-    
+
     public AdminDashboard(int adminId, String adminName) {
         this.adminId = adminId;
         this.adminName = adminName;
     }
-    
+
     public void open() {
         stage = new Stage();
-        
+
         TabPane tabPane = new TabPane();
         tabPane.getTabs().addAll(
             createPilotTab(),
@@ -32,30 +45,30 @@ public class AdminDashboard {
             createFlightTab(),
             createPaycheckTab()
         );
-        
+
         VBox root = new VBox(10);
         Label title = new Label("Admin Dashboard - Welcome, " + adminName);
         title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
         root.getChildren().addAll(title, tabPane);
         root.setPadding(new Insets(15));
-        
+
         Scene scene = new Scene(root, 1200, 700);
         stage.setScene(scene);
         stage.setTitle("Admin Dashboard");
         stage.show();
     }
-    
+
     // ========== PILOT MANAGEMENT ==========
     private Tab createPilotTab() {
         Tab tab = new Tab( "Pilots");
         tab.setClosable(false);
-        
+
         VBox content = new VBox(10);
         content.setPadding(new Insets(15));
-        
+
         Label title = new Label("Pilot Management");
         title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-        
+
         // Form
         TextField nameField = new TextField();
         nameField.setPromptText("Name");
@@ -65,25 +78,25 @@ public class AdminDashboard {
         passwordField.setPromptText("Password");
         TextField phoneField = new TextField();
         phoneField.setPromptText("Phone");
-        
+
         Button addBtn = new Button("➕ Add Pilot");
         addBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
         Button refreshBtn = new Button("🔄 Refresh");
-        
+
         Label statusLabel = new Label();
-        
+
         TableView<ObservableList<String>> table = new TableView<>();
         table.setPrefHeight(300);
-        
+
         String[] columns = {"ID", "Name", "Email", "Phone"};
         for (int i = 0; i < columns.length; i++) {
             final int colIndex = i;
             TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
-            column.setCellValueFactory(param -> 
+            column.setCellValueFactory(param ->
                 new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
             table.getColumns().add(column);
         }
-        
+
         addBtn.setOnAction(e -> {
             try {
                 Connection conn = DBConnection.getConnection();
@@ -94,7 +107,7 @@ public class AdminDashboard {
                 ps.setString(3, passwordField.getText());
                 ps.setString(4, phoneField.getText());
                 ps.executeUpdate();
-                
+
                 ResultSet keys = ps.getGeneratedKeys();
                 if (keys.next()) {
                     int userId = keys.getInt(1);
@@ -103,14 +116,14 @@ public class AdminDashboard {
                     empPs.setInt(1, userId);
                     empPs.setString(2, "EMP" + userId);
                     empPs.executeUpdate();
-                    
+
                     String pilotSql = "INSERT INTO pilots (id, license_number, flight_hours, certifications) VALUES (?, ?, 0, 'Standard')";
                     PreparedStatement pilotPs = conn.prepareStatement(pilotSql);
                     pilotPs.setInt(1, userId);
                     pilotPs.setString(2, "LIC-" + userId);
                     pilotPs.executeUpdate();
                 }
-                
+
                 statusLabel.setText("✅ Pilot added!");
                 statusLabel.setStyle("-fx-text-fill: green;");
                 refreshPilotTable(table);
@@ -120,19 +133,19 @@ public class AdminDashboard {
                 statusLabel.setStyle("-fx-text-fill: red;");
             }
         });
-        
+
         refreshBtn.setOnAction(e -> refreshPilotTable(table));
-        
+
         content.getChildren().addAll(title, nameField, emailField, passwordField, phoneField,
             new HBox(10, addBtn, refreshBtn), statusLabel, table);
-        
+
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         tab.setContent(scroll);
         refreshPilotTable(table);
         return tab;
     }
-    
+
     private void refreshPilotTable(TableView<ObservableList<String>> table) {
         table.getItems().clear();
         try {
@@ -140,7 +153,7 @@ public class AdminDashboard {
             String sql = "SELECT u.id, u.name, u.email, u.phone FROM users u WHERE u.role = 'PILOT'";
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery(sql);
-            
+
             while (rs.next()) {
                 ObservableList<String> row = FXCollections.observableArrayList();
                 row.add(rs.getString("id"));
@@ -153,18 +166,18 @@ public class AdminDashboard {
             e.printStackTrace();
         }
     }
-    
+
     // ========== CREW MANAGEMENT ==========
     private Tab createCrewTab() {
         Tab tab = new Tab("👥 Crew");
         tab.setClosable(false);
-        
+
         VBox content = new VBox(10);
         content.setPadding(new Insets(15));
-        
+
         Label title = new Label("Crew Member Management");
         title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-        
+
         TextField nameField = new TextField();
         nameField.setPromptText("Name");
         TextField emailField = new TextField();
@@ -173,25 +186,25 @@ public class AdminDashboard {
         passwordField.setPromptText("Password");
         TextField phoneField = new TextField();
         phoneField.setPromptText("Phone");
-        
+
         Button addBtn = new Button("➕ Add Crew Member");
         addBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
         Button refreshBtn = new Button("🔄 Refresh");
-        
+
         Label statusLabel = new Label();
-        
+
         TableView<ObservableList<String>> table = new TableView<>();
         table.setPrefHeight(300);
-        
+
         String[] columns = {"ID", "Name", "Email", "Phone"};
         for (int i = 0; i < columns.length; i++) {
             final int colIndex = i;
             TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
-            column.setCellValueFactory(param -> 
+            column.setCellValueFactory(param ->
                 new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
             table.getColumns().add(column);
         }
-        
+
         addBtn.setOnAction(e -> {
             try {
                 Connection conn = DBConnection.getConnection();
@@ -202,7 +215,7 @@ public class AdminDashboard {
                 ps.setString(3, passwordField.getText());
                 ps.setString(4, phoneField.getText());
                 ps.executeUpdate();
-                
+
                 ResultSet keys = ps.getGeneratedKeys();
                 if (keys.next()) {
                     int userId = keys.getInt(1);
@@ -211,13 +224,13 @@ public class AdminDashboard {
                     empPs.setInt(1, userId);
                     empPs.setString(2, "EMP" + userId);
                     empPs.executeUpdate();
-                    
+
                     String crewSql = "INSERT INTO crew_members (id, position, languages_spoken) VALUES (?, 'Flight Attendant', 'English')";
                     PreparedStatement crewPs = conn.prepareStatement(crewSql);
                     crewPs.setInt(1, userId);
                     crewPs.executeUpdate();
                 }
-                
+
                 statusLabel.setText("✅ Crew member added!");
                 statusLabel.setStyle("-fx-text-fill: green;");
                 refreshCrewTable(table);
@@ -227,19 +240,19 @@ public class AdminDashboard {
                 statusLabel.setStyle("-fx-text-fill: red;");
             }
         });
-        
+
         refreshBtn.setOnAction(e -> refreshCrewTable(table));
-        
+
         content.getChildren().addAll(title, nameField, emailField, passwordField, phoneField,
             new HBox(10, addBtn, refreshBtn), statusLabel, table);
-        
+
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         tab.setContent(scroll);
         refreshCrewTable(table);
         return tab;
     }
-    
+
     private void refreshCrewTable(TableView<ObservableList<String>> table) {
         table.getItems().clear();
         try {
@@ -247,7 +260,7 @@ public class AdminDashboard {
             String sql = "SELECT u.id, u.name, u.email, u.phone FROM users u WHERE u.role = 'CREW'";
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery(sql);
-            
+
             while (rs.next()) {
                 ObservableList<String> row = FXCollections.observableArrayList();
                 row.add(rs.getString("id"));
@@ -260,18 +273,18 @@ public class AdminDashboard {
             e.printStackTrace();
         }
     }
-    
+
     // ========== PASSENGER MANAGEMENT ==========
     private Tab createPassengerTab() {
         Tab tab = new Tab("🧳 Passengers");
         tab.setClosable(false);
-        
+
         VBox content = new VBox(10);
         content.setPadding(new Insets(15));
-        
+
         Label title = new Label("Passenger Management");
         title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-        
+
         TextField nameField = new TextField();
         nameField.setPromptText("Name");
         TextField emailField = new TextField();
@@ -284,25 +297,25 @@ public class AdminDashboard {
         passportField.setPromptText("Passport Number");
         TextField nationalityField = new TextField();
         nationalityField.setPromptText("Nationality");
-        
+
         Button addBtn = new Button("➕ Add Passenger");
         addBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
         Button refreshBtn = new Button("🔄 Refresh");
-        
+
         Label statusLabel = new Label();
-        
+
         TableView<ObservableList<String>> table = new TableView<>();
         table.setPrefHeight(250);
-        
+
         String[] columns = {"ID", "Name", "Email", "Passport", "Nationality"};
         for (int i = 0; i < columns.length; i++) {
             final int colIndex = i;
             TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
-            column.setCellValueFactory(param -> 
+            column.setCellValueFactory(param ->
                 new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
             table.getColumns().add(column);
         }
-        
+
         addBtn.setOnAction(e -> {
             try {
                 Connection conn = DBConnection.getConnection();
@@ -313,7 +326,7 @@ public class AdminDashboard {
                 ps.setString(3, passwordField.getText());
                 ps.setString(4, phoneField.getText());
                 ps.executeUpdate();
-                
+
                 ResultSet keys = ps.getGeneratedKeys();
                 if (keys.next()) {
                     int userId = keys.getInt(1);
@@ -324,30 +337,30 @@ public class AdminDashboard {
                     passPs.setString(3, nationalityField.getText());
                     passPs.executeUpdate();
                 }
-                
+
                 statusLabel.setText("✅ Passenger added!");
                 statusLabel.setStyle("-fx-text-fill: green;");
                 refreshPassengerTable(table);
-                nameField.clear(); emailField.clear(); passwordField.clear(); 
+                nameField.clear(); emailField.clear(); passwordField.clear();
                 phoneField.clear(); passportField.clear(); nationalityField.clear();
             } catch (Exception ex) {
                 statusLabel.setText("❌ Error: " + ex.getMessage());
                 statusLabel.setStyle("-fx-text-fill: red;");
             }
         });
-        
+
         refreshBtn.setOnAction(e -> refreshPassengerTable(table));
-        
+
         content.getChildren().addAll(title, nameField, emailField, passwordField, phoneField,
             passportField, nationalityField, new HBox(10, addBtn, refreshBtn), statusLabel, table);
-        
+
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         tab.setContent(scroll);
         refreshPassengerTable(table);
         return tab;
     }
-    
+
     private void refreshPassengerTable(TableView<ObservableList<String>> table) {
         table.getItems().clear();
         try {
@@ -356,7 +369,7 @@ public class AdminDashboard {
                         "FROM users u JOIN passengers p ON u.id = p.id";
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery(sql);
-            
+
             while (rs.next()) {
                 ObservableList<String> row = FXCollections.observableArrayList();
                 row.add(rs.getString("id"));
@@ -370,39 +383,39 @@ public class AdminDashboard {
             e.printStackTrace();
         }
     }
-    
+
     // ========== FLIGHT TAB (View Created Flights) ==========
     private Tab createFlightTab() {
         Tab tab = new Tab("✈️ Flights");
         tab.setClosable(false);
-        
+
         VBox content = new VBox(15);
         content.setPadding(new Insets(15));
-        
+
         Label title = new Label("All Created Flights");
         title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-        
+
         TableView<ObservableList<String>> table = new TableView<>();
         table.setPrefHeight(400);
-        
+
         String[] columns = {"Flight #", "From", "To", "Date", "Time", "Status"};
         for (int i = 0; i < columns.length; i++) {
             final int colIndex = i;
             TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
-            column.setCellValueFactory(param -> 
+            column.setCellValueFactory(param ->
                 new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
             table.getColumns().add(column);
         }
-        
+
         Button refreshBtn = new Button("🔄 Refresh");
         refreshBtn.setOnAction(e -> refreshFlightTable(table));
-        
+
         content.getChildren().addAll(title, table, refreshBtn);
         tab.setContent(content);
         refreshFlightTable(table);
         return tab;
     }
-    
+
     private void refreshFlightTable(TableView<ObservableList<String>> table) {
         table.getItems().clear();
         try {
@@ -411,7 +424,7 @@ public class AdminDashboard {
                         "FROM flights ORDER BY flight_date DESC";
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery(sql);
-            
+
             while (rs.next()) {
                 ObservableList<String> row = FXCollections.observableArrayList();
                 row.add(rs.getString("flight_number"));
@@ -426,35 +439,35 @@ public class AdminDashboard {
             e.printStackTrace();
         }
     }
-    
+
     // ========== PAYCHECK TAB ==========
     private Tab createPaycheckTab() {
         Tab tab = new Tab("💰 Paychecks");
         tab.setClosable(false);
-        
+
         VBox content = new VBox(15);
         content.setPadding(new Insets(15));
-        
+
         Label title = new Label("Generate Employee Paychecks");
         title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-        
+
         ComboBox<String> employeeBox = new ComboBox<>();
         employeeBox.setPromptText("Select Employee");
         employeeBox.setPrefWidth(400);
         loadEmployees(employeeBox);
-        
+
         Button generateBtn = new Button("📄 Generate Paycheck");
         generateBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-padding: 10px;");
-        
+
         Label statusLabel = new Label();
-        
+
         generateBtn.setOnAction(e -> {
             if (employeeBox.getValue() == null) {
                 statusLabel.setText("❌ Select an employee");
                 statusLabel.setStyle("-fx-text-fill: red;");
                 return;
             }
-            
+
             try {
                 int empId = Integer.parseInt(employeeBox.getValue().split(" - ")[0]);
                 generatePaycheck(empId, statusLabel);
@@ -463,19 +476,19 @@ public class AdminDashboard {
                 statusLabel.setStyle("-fx-text-fill: red;");
             }
         });
-        
+
         content.getChildren().addAll(title, employeeBox, generateBtn, statusLabel);
         tab.setContent(content);
         return tab;
     }
-    
+
     private void loadEmployees(ComboBox<String> box) {
         try {
             Connection conn = DBConnection.getConnection();
             String sql = "SELECT u.id, u.name, e.employee_id FROM users u JOIN employees e ON u.id = e.id";
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery(sql);
-            
+
             while (rs.next()) {
                 box.getItems().add(rs.getInt("id") + " - " + rs.getString("name") + " (" + rs.getString("employee_id") + ")");
             }
@@ -483,7 +496,7 @@ public class AdminDashboard {
             e.printStackTrace();
         }
     }
-    
+
     private void generatePaycheck(int empId, Label statusLabel) {
         try {
             Connection conn = DBConnection.getConnection();
@@ -491,17 +504,17 @@ public class AdminDashboard {
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.setInt(1, empId);
             ResultSet rs = ps.executeQuery();
-            
+
             if (rs.next()) {
                 double netPay = rs.getDouble("salary") * 0.85;
-                
+
                 String insertSql = "INSERT INTO paychecks (employee_id, pay_period_start, pay_period_end, amount, is_printed) " +
                                   "VALUES (?, CURDATE() - INTERVAL 1 MONTH, CURDATE(), ?, FALSE)";
                 PreparedStatement insertPs = conn.prepareStatement(insertSql);
                 insertPs.setInt(1, empId);
                 insertPs.setDouble(2, netPay);
                 insertPs.executeUpdate();
-                
+
                 statusLabel.setText("✅ Paycheck generated for " + rs.getString("name"));
                 statusLabel.setStyle("-fx-text-fill: green;");
             }
