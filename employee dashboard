@@ -28,6 +28,13 @@ public class EmployeeDashboard {
     public void open() {
         stage = new Stage();
         
+        TabPane tabPane = new TabPane();
+        tabPane.getTabs().addAll(
+            createInfoTab(),
+            createFlightsTab(),
+            createPaycheckTab()
+        );
+        
         VBox root = new VBox(15);
         root.setPadding(new Insets(20));
         root.setStyle("-fx-background-color: #f5f5f5;");
@@ -39,18 +46,81 @@ public class EmployeeDashboard {
         Label welcome = new Label("Welcome, " + name);
         welcome.setStyle("-fx-font-size: 16px; -fx-text-fill: #666;");
         
-        // Employee Info Card
-        VBox infoCard = createInfoCard();
+        root.getChildren().addAll(title, welcome, tabPane);
         
-        // Assigned Flights Section
-        VBox flightsSection = createFlightsSection();
-        
-        root.getChildren().addAll(title, welcome, infoCard, new Separator(), flightsSection);
-        
-        Scene scene = new Scene(root, 900, 650);
+        Scene scene = new Scene(root, 950, 700);
         stage.setScene(scene);
         stage.setTitle(role + " Dashboard");
         stage.show();
+    }
+    
+    private Tab createInfoTab() {
+        Tab tab = new Tab("📋 My Information");
+        tab.setClosable(false);
+        
+        VBox card = createInfoCard();
+        card.setPadding(new Insets(20));
+        
+        tab.setContent(card);
+        return tab;
+    }
+    
+    private Tab createFlightsTab() {
+        Tab tab = new Tab("✈️ My Flights");
+        tab.setClosable(false);
+        
+        VBox section = createFlightsSection();
+        section.setPadding(new Insets(20));
+        
+        tab.setContent(section);
+        return tab;
+    }
+    
+    private Tab createPaycheckTab() {
+        Tab tab = new Tab("💰 My Paychecks");
+        tab.setClosable(false);
+        
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        
+        Label title = new Label("Your Paychecks");
+        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        
+        // Paycheck table
+        TableView<ObservableList<String>> table = new TableView<>();
+        table.setPrefHeight(350);
+        setupPaycheckTable(table);
+        loadPaychecks(table);
+        
+        // Buttons
+        Button printBtn = new Button("🖨️ Print Selected Paycheck");
+        printBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-padding: 10px 20px; -fx-font-weight: bold;");
+        
+        Button refreshBtn = new Button("🔄 Refresh");
+        refreshBtn.setStyle("-fx-padding: 10px 20px;");
+        
+        Label statusLabel = new Label();
+        
+        printBtn.setOnAction(e -> {
+            ObservableList<String> selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                statusLabel.setText("❌ Please select a paycheck to print");
+                statusLabel.setStyle("-fx-text-fill: red;");
+                return;
+            }
+            
+            int paycheckId = Integer.parseInt(selected.get(0));
+            printPaycheck(paycheckId, statusLabel, table);
+        });
+        
+        refreshBtn.setOnAction(e -> loadPaychecks(table));
+        
+        HBox buttonBox = new HBox(10, printBtn, refreshBtn);
+        
+        content.getChildren().addAll(title, table, buttonBox, statusLabel);
+        tab.setContent(content);
+        
+        return tab;
     }
     
     private VBox createInfoCard() {
@@ -229,6 +299,129 @@ public class EmployeeDashboard {
             }
         } catch (SQLException e) {
             e.printStackTrace();
+        }
+    }
+    
+    private void setupPaycheckTable(TableView<ObservableList<String>> table) {
+        String[] columns = {"ID", "Pay Period", "Amount", "Generated On", "Status"};
+        for (int i = 0; i < columns.length; i++) {
+            final int colIndex = i;
+            TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
+            column.setCellValueFactory(param -> 
+                new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
+            table.getColumns().add(column);
+        }
+    }
+    
+    private void loadPaychecks(TableView<ObservableList<String>> table) {
+        table.getItems().clear();
+        try {
+            Connection conn = DBConnection.getConnection();
+            String sql = "SELECT id, CONCAT(pay_period_start, ' to ', pay_period_end) as period, " +
+                        "amount, generated_at, is_printed " +
+                        "FROM paychecks WHERE employee_id = ? " +
+                        "ORDER BY generated_at DESC";
+            
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, userId);
+            ResultSet rs = ps.executeQuery();
+            
+            while (rs.next()) {
+                ObservableList<String> row = FXCollections.observableArrayList();
+                row.add(rs.getString("id"));
+                row.add(rs.getString("period"));
+                row.add("$" + String.format("%.2f", rs.getDouble("amount")));
+                row.add(rs.getString("generated_at"));
+                row.add(rs.getBoolean("is_printed") ? "✅ Printed" : "⏳ Ready to Print");
+                table.getItems().add(row);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private void printPaycheck(int paycheckId, Label statusLabel, TableView<ObservableList<String>> table) {
+        try {
+            Connection conn = DBConnection.getConnection();
+            
+            // Get paycheck and employee details
+            String sql = "SELECT p.pay_period_start, p.pay_period_end, p.amount, " +
+                        "u.name, e.employee_id, e.bank_account, e.salary " +
+                        "FROM paychecks p " +
+                        "JOIN employees e ON p.employee_id = e.id " +
+                        "JOIN users u ON e.id = u.id " +
+                        "WHERE p.id = ?";
+            
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, paycheckId);
+            ResultSet rs = ps.executeQuery();
+            
+            if (rs.next()) {
+                String empName = rs.getString("name");
+                String empId = rs.getString("employee_id");
+                String bankAccount = rs.getString("bank_account");
+                double grossSalary = rs.getDouble("salary");
+                double netPay = rs.getDouble("amount");
+                String startDate = rs.getString("pay_period_start");
+                String endDate = rs.getString("pay_period_end");
+                
+                // File chooser
+                javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
+                fileChooser.setTitle("Save Paycheck");
+                fileChooser.setInitialFileName("Paycheck_" + empId + "_" + System.currentTimeMillis() + ".txt");
+                fileChooser.getExtensionFilters().add(
+                    new javafx.stage.FileChooser.ExtensionFilter("Text Files", "*.txt")
+                );
+                
+                java.io.File file = fileChooser.showSaveDialog(stage);
+                
+                if (file != null) {
+                    java.io.PrintWriter writer = new java.io.PrintWriter(new java.io.FileWriter(file));
+                    
+                    writer.println("═══════════════════════════════════════════════════");
+                    writer.println("                  EMPLOYEE PAYCHECK");
+                    writer.println("═══════════════════════════════════════════════════");
+                    writer.println();
+                    writer.println("  Employee Name: " + empName);
+                    writer.println("  Employee ID:   " + empId);
+                    writer.println("  Bank Account:  " + bankAccount);
+                    writer.println();
+                    writer.println("  Pay Period:    " + startDate + " to " + endDate);
+                    writer.println();
+                    writer.println("  Gross Salary:  $" + String.format("%.2f", grossSalary));
+                    writer.println("  Deductions:    $" + String.format("%.2f", grossSalary * 0.15));
+                    writer.println("  Net Pay:       $" + String.format("%.2f", netPay));
+                    writer.println();
+                    writer.println("  Generated:     " + new java.util.Date());
+                    writer.println();
+                    writer.println("═══════════════════════════════════════════════════");
+                    writer.println("         Thank you for your service!");
+                    writer.println("═══════════════════════════════════════════════════");
+                    
+                    writer.close();
+                    
+                    // Mark as printed
+                    String updateSql = "UPDATE paychecks SET is_printed = TRUE, file_path = ? WHERE id = ?";
+                    PreparedStatement updatePs = conn.prepareStatement(updateSql);
+                    updatePs.setString(1, file.getAbsolutePath());
+                    updatePs.setInt(2, paycheckId);
+                    updatePs.executeUpdate();
+                    
+                    statusLabel.setText("✅ Paycheck saved: " + file.getName());
+                    statusLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
+                    
+                    // Refresh table
+                    loadPaychecks(table);
+                } else {
+                    statusLabel.setText("⚠️ Print cancelled");
+                    statusLabel.setStyle("-fx-text-fill: orange;");
+                }
+            }
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            statusLabel.setText("❌ Error: " + e.getMessage());
+            statusLabel.setStyle("-fx-text-fill: red;");
         }
     }
 }
