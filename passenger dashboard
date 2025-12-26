@@ -77,7 +77,7 @@ public class PassengerDashboard {
     
     // ========== MY FLIGHT TAB (Create or View with FULL DETAILS) ==========
     private Tab createMyFlightTab() {
-        Tab tab = new Tab("✈️ My Private Jet");
+        Tab tab = new Tab("My Private Jet");
         tab.setClosable(false);
         
         VBox content = new VBox(15);
@@ -125,7 +125,7 @@ public class PassengerDashboard {
                                    "-fx-border-color: #2196F3; -fx-border-width: 3px; -fx-border-radius: 15px; " +
                                    "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 10, 0, 0, 3);");
                 
-                Label cardTitle = new Label("✈️ Your Private Jet Flight");
+                Label cardTitle = new Label("Your Private Jet Flight");
                 cardTitle.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #1a237e;");
                 
                 Separator sep1 = new Separator();
@@ -133,12 +133,12 @@ public class PassengerDashboard {
                 // Flight Info Section
                 VBox flightInfo = new VBox(5);
                 flightInfo.getChildren().addAll(
-                    createInfoLabel("🎫 Flight Number:", flightNo, true),
-                    createInfoLabel("📍 Route:", from + " → " + to, false),
-                    createInfoLabel("📅 Date:", date, false),
-                    createInfoLabel("🕐 Departure:", depTime, false),
-                    createInfoLabel("🕐 Arrival:", arrTime != null ? arrTime : depTime, false),
-                    createInfoLabel("📊 Status:", status, false)
+                    createInfoLabel("Flight Number:", flightNo, true),
+                    createInfoLabel("Route:", from + " → " + to, false),
+                    createInfoLabel("Date:", date, false),
+                    createInfoLabel("Departure:", depTime, false),
+                    createInfoLabel("Arrival:", arrTime != null ? arrTime : depTime, false),
+                    createInfoLabel("Status:", status, false)
                 );
                 
                 Separator sep2 = new Separator();
@@ -147,8 +147,8 @@ public class PassengerDashboard {
                 VBox aircraftInfo = new VBox(5);
                 if (aircraft != null) {
                     aircraftInfo.getChildren().addAll(
-                        createInfoLabel("🛩️ Aircraft:", aircraft, false),
-                        createInfoLabel("✈️ Model:", manufacturer + " " + model, false)
+                        createInfoLabel("Aircraft:", aircraft, false),
+                        createInfoLabel("Model:", manufacturer + " " + model, false)
                     );
                 } else {
                     aircraftInfo.getChildren().add(createInfoLabel("🛩️ Aircraft:", "Private Jet", false));
@@ -159,8 +159,8 @@ public class PassengerDashboard {
                 // Booking Info Section
                 VBox bookingInfo = new VBox(5);
                 bookingInfo.getChildren().addAll(
-                    createInfoLabel("💰 Total Cost:", String.format("$%.2f", price), true),
-                    createInfoLabel("📝 Booked On:", bookedOn, false)
+                    createInfoLabel("Total Cost:", String.format("$%.2f", price), true),
+                    createInfoLabel("Booked On:", bookedOn, false)
                 );
                 
                 flightCard.getChildren().addAll(
@@ -168,7 +168,7 @@ public class PassengerDashboard {
                 );
                 
                 // Print Ticket Button
-                Button printBtn = new Button("🎫 Print Boarding Pass");
+                Button printBtn = new Button("Print Boarding Pass");
                 printBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; " +
                                  "-fx-padding: 12px 30px; -fx-font-weight: bold; -fx-font-size: 14px;");
                 
@@ -214,7 +214,7 @@ public class PassengerDashboard {
                 datePicker.setValue(LocalDate.now());
                 datePicker.setPrefWidth(350);
                 
-                Label timeLabel = new Label("🕒 Departure Time:");
+                Label timeLabel = new Label("Departure Time:");
                 timeLabel.setStyle("-fx-font-weight: bold;");
                 
                 ComboBox<Integer> hourBox = new ComboBox<>();
@@ -236,7 +236,7 @@ public class PassengerDashboard {
                 amPmBox.getItems().addAll("AM", "PM");
                 amPmBox.setValue("AM");
                 
-                Button createBtn = new Button("✈️ Create My Private Jet Flight");
+                Button createBtn = new Button("Create My Private Jet Flight");
                 createBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; " +
                                   "-fx-padding: 12px 30px; -fx-font-weight: bold; -fx-font-size: 14px;");
                 
@@ -249,7 +249,7 @@ public class PassengerDashboard {
                     
                     try {
                         if (originBox.getValue() == null || destinationBox.getValue() == null) {
-                            statusLabel.setText("❌ Please select origin and destination");
+                            statusLabel.setText("Please select origin and destination");
                             statusLabel.setStyle("-fx-text-fill: red;");
                             return;
                         }
@@ -258,7 +258,7 @@ public class PassengerDashboard {
                         String toCode = destinationBox.getValue().substring(0, 3);
                         
                         if (fromCode.equals(toCode)) {
-                            statusLabel.setText("❌ Origin and destination cannot be the same");
+                            statusLabel.setText("Origin and destination cannot be the same");
                             statusLabel.setStyle("-fx-text-fill: red;");
                             return;
                         }
@@ -318,7 +318,7 @@ public class PassengerDashboard {
                         bookingPs.setDouble(4, totalPrice);
                         bookingPs.executeUpdate();
                         
-                        statusLabel.setText(String.format("✅ Flight %s created! Total: $%.2f", flightNo, totalPrice));
+                        statusLabel.setText(String.format("Flight %s created! Total: $%.2f", flightNo, totalPrice));
                         statusLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
                         
                         // Reload page to show flight details
@@ -327,7 +327,7 @@ public class PassengerDashboard {
                         
                     } catch (Exception ex) {
                         ex.printStackTrace();
-                        statusLabel.setText("❌ Error: " + ex.getMessage());
+                        statusLabel.setText("Error: " + ex.getMessage());
                         statusLabel.setStyle("-fx-text-fill: red;");
                     } finally {
                         // Properly close resources
@@ -343,9 +343,9 @@ public class PassengerDashboard {
                 
                 content.getChildren().addAll(
                     subtitle,
-                    new Label("🛫 Origin:"), originBox,
-                    new Label("🌍 Destination:"), destinationBox,
-                    new Label("📅 Date:"), datePicker,
+                    new Label("Origin:"), originBox,
+                    new Label("Destination:"), destinationBox,
+                    new Label("Date:"), datePicker,
                     timeLabel,
                     new Label("Hour:"), hourBox,
                     new Label("Minute:"), minuteBox,
@@ -429,7 +429,7 @@ public class PassengerDashboard {
                 writer.println("           PRIVATE JET BOARDING PASS");
                 writer.println("═══════════════════════════════════════════════════");
                 writer.println();
-                writer.println("  🌟 EXCLUSIVE VIP SERVICE 🌟");
+                writer.println("   EXCLUSIVE VIP SERVICE ");
                 writer.println();
                 writer.println("  Passenger:    " + passenger.getName());
                 writer.println("  Passport:     " + passenger.getPassportNumber());
@@ -442,7 +442,7 @@ public class PassengerDashboard {
                 writer.println();
                 writer.println("  Total Cost:   $" + String.format("%.2f", price));
                 writer.println();
-                writer.println("  ✈️ ENTIRE AIRCRAFT RESERVED FOR YOUR PARTY");
+                writer.println("  ️ ENTIRE AIRCRAFT RESERVED FOR YOUR PARTY");
                 writer.println();
                 writer.println("═══════════════════════════════════════════════════");
                 writer.println("        Thank you for choosing our luxury service!");
@@ -450,16 +450,16 @@ public class PassengerDashboard {
                 
                 writer.close();
                 
-                statusLabel.setText("✅ Boarding pass saved: " + file.getName());
+                statusLabel.setText("Boarding pass saved: " + file.getName());
                 statusLabel.setStyle("-fx-text-fill: green;");
             }
         } catch (Exception e) {
-            statusLabel.setText("❌ Error: " + e.getMessage());
+            statusLabel.setText("Error: " + e.getMessage());
             statusLabel.setStyle("-fx-text-fill: red;");
         }
     }
     private Tab createAssignmentTab() {
-        Tab tab = new Tab("🧑‍✈️ Assign Crew");
+        Tab tab = new Tab("Assign Crew");
         tab.setClosable(false);
 
         VBox content = new VBox(15);
@@ -486,7 +486,7 @@ public class PassengerDashboard {
         crewList.setPrefHeight(200);
         loadCrew(crewList);
 
-        Button assignBtn = new Button("✅ Assign to Flight");
+        Button assignBtn = new Button("Assign to Flight");
         assignBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
 
         Label statusLabel = new Label();
@@ -495,7 +495,7 @@ public class PassengerDashboard {
             if (flightBox.getValue() == null || pilotBox.getValue() == null ||
                 crewList.getSelectionModel().getSelectedItems().isEmpty()) {
 
-                statusLabel.setText("❌ Select flight, pilot, and crew");
+                statusLabel.setText("Select flight, pilot, and crew");
                 statusLabel.setStyle("-fx-text-fill: red;");
                 return;
             }
@@ -532,11 +532,11 @@ public class PassengerDashboard {
                     crewPs.executeUpdate();
                 }
 
-                statusLabel.setText("✅ Pilot & Crew assigned successfully!");
+                statusLabel.setText("Pilot & Crew assigned successfully!");
                 statusLabel.setStyle("-fx-text-fill: green;");
 
             } catch (Exception ex) {
-                statusLabel.setText("❌ Error: " + ex.getMessage());
+                statusLabel.setText("Error: " + ex.getMessage());
                 statusLabel.setStyle("-fx-text-fill: red;");
                 ex.printStackTrace();
             }
@@ -544,9 +544,9 @@ public class PassengerDashboard {
 
         content.getChildren().addAll(
             title,
-            new Label("✈️ Flight:"), flightBox,
-            new Label("🧑‍✈️ Pilot:"), pilotBox,
-            new Label("👥 Crew Members:"), crewList,
+            new Label("Flight:"), flightBox,
+            new Label("Pilot:"), pilotBox,
+            new Label("Crew Members:"), crewList,
             assignBtn, statusLabel
         );
 
@@ -601,7 +601,7 @@ public class PassengerDashboard {
 
     
     private Tab createProfileTab() {
-        Tab tab = new Tab("👤 My Profile");
+        Tab tab = new Tab("My Profile");
         tab.setClosable(false);
 
         VBox content = new VBox(20);
@@ -687,7 +687,7 @@ public class PassengerDashboard {
 
         } catch (SQLException e) {
             flightsBox.getChildren().add(
-                new Label("❌ Error loading flights")
+                new Label("Error loading flights")
             );
             e.printStackTrace();
         }
