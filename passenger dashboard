@@ -77,7 +77,7 @@ public class PassengerDashboard {
     
     // ========== MY FLIGHT TAB (Create or View with FULL DETAILS) ==========
     private Tab createMyFlightTab() {
-        Tab tab = new Tab("My Private Jet");
+        Tab tab = new Tab("Book Jet");
         tab.setClosable(false);
         
         VBox content = new VBox(15);
@@ -180,7 +180,7 @@ public class PassengerDashboard {
                 
             } else {
                 // ===== NO FLIGHT - Create new one =====
-                info.setText("🛩️ Create Your Private Jet Flight");
+                info.setText("Create Your Private Jet Flight");
                 info.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
                 
                 Label subtitle = new Label("As a VIP passenger, design your exclusive journey");
@@ -223,7 +223,7 @@ public class PassengerDashboard {
                 for (int i = 1; i <= 12; i++) {
                     hourBox.getItems().add(i);
                 }
-                hourBox.setValue(9);
+                hourBox.setValue(12);
                 
                 ComboBox<Integer> minuteBox = new ComboBox<>();
                 minuteBox.setPromptText("Minute");
@@ -242,7 +242,7 @@ public class PassengerDashboard {
                 
                 Label statusLabel = new Label();
                 
-                createBtn.setOnAction(e -> {
+                createBtn.setOnAction(e -> {SoundManager.playClick();
                     Connection freshConn = null;
                     PreparedStatement flightPs = null;
                     PreparedStatement bookingPs = null;
@@ -277,13 +277,11 @@ public class PassengerDashboard {
                         
                         String flightTime = String.format("%02d:%02d:00", hour, minuteBox.getValue());
                         String flightDate = datePicker.getValue().toString();
+                        String deputureTime = String.format("%02d:%02d:00", hour+2, minuteBox.getValue());
+   
+                        double totalPrice = 5000 ;
                         
-                        // Calculate price
-                        double basePrice = 5000.0;
-                        double distanceFactor = calculateDistance(fromCode, toCode);
-                        double totalPrice = basePrice + (distanceFactor * 100);
-                        
-                        // Create flight
+                    
                         String flightSql = "INSERT INTO flights (flight_number, departure_airport, arrival_airport, " +
                                           "flight_date, departure_time, arrival_time, available_seats, status) " +
                                           "VALUES (?, ?, ?, ?, ?, ?, 6, 'Scheduled')";
@@ -293,7 +291,7 @@ public class PassengerDashboard {
                         flightPs.setString(3, toCode);
                         flightPs.setString(4, flightDate);
                         flightPs.setString(5, flightTime);
-                        flightPs.setString(6, flightTime);
+                        flightPs.setString(6, deputureTime);
                         flightPs.executeUpdate();
                         
                         ResultSet keys = flightPs.getGeneratedKeys();
@@ -394,22 +392,7 @@ public class PassengerDashboard {
         return flightNo;
     }
     
-    private double calculateDistance(String from, String to) {
-        Map<String, String> regions = new HashMap<>();
-        regions.put("JFK", "US"); regions.put("LAX", "US"); regions.put("ORD", "US");
-        regions.put("DFW", "US"); regions.put("ATL", "US"); regions.put("MIA", "US");
-        regions.put("SFO", "US"); regions.put("LHR", "UK"); regions.put("CDG", "FR");
-        regions.put("DXB", "AE"); regions.put("SIN", "SG"); regions.put("HND", "JP");
-        regions.put("PEK", "CN"); regions.put("FRA", "DE"); regions.put("AMS", "NL");
-        regions.put("BCN", "ES"); regions.put("SYD", "AU"); regions.put("YYZ", "CA");
-        regions.put("MEX", "MX"); regions.put("GRU", "BR");
-        
-        String fromRegion = regions.getOrDefault(from, "XX");
-        String toRegion = regions.getOrDefault(to, "XX");
-        
-        return fromRegion.equals(toRegion) ? 10.0 : 50.0;
-        
-    }
+   
     
     private void printTicket(String flightNo, String from, String to, String date, String time, double price, Label statusLabel) {
         try {
@@ -458,148 +441,6 @@ public class PassengerDashboard {
             statusLabel.setStyle("-fx-text-fill: red;");
         }
     }
-    private Tab createAssignmentTab() {
-        Tab tab = new Tab("Assign Crew");
-        tab.setClosable(false);
-
-        VBox content = new VBox(15);
-        content.setPadding(new Insets(15));
-
-        Label title = new Label("Assign Pilots & Crew to Flights");
-        title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-
-        // Flight selector
-        ComboBox<String> flightBox = new ComboBox<>();
-        flightBox.setPrefWidth(450);
-        flightBox.setPromptText("Select Flight");
-        loadFlights(flightBox);
-
-        // Pilot selector
-        ComboBox<String> pilotBox = new ComboBox<>();
-        pilotBox.setPrefWidth(450);
-        pilotBox.setPromptText("Select Pilot");
-        loadPilots(pilotBox);
-
-        // Crew selector (MULTI SELECT)
-        ListView<String> crewList = new ListView<>();
-        crewList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-        crewList.setPrefHeight(200);
-        loadCrew(crewList);
-
-        Button assignBtn = new Button("Assign to Flight");
-        assignBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
-
-        Label statusLabel = new Label();
-
-        assignBtn.setOnAction(e -> {
-            if (flightBox.getValue() == null || pilotBox.getValue() == null ||
-                crewList.getSelectionModel().getSelectedItems().isEmpty()) {
-
-                statusLabel.setText("Select flight, pilot, and crew");
-                statusLabel.setStyle("-fx-text-fill: red;");
-                return;
-            }
-
-            int flightId = Integer.parseInt(flightBox.getValue().split(" - ")[0]);
-            int pilotId = Integer.parseInt(pilotBox.getValue().split(" - ")[0]);
-
-            try (Connection conn = DBConnection.getConnection()) {
-
-                // Assign pilot (replace if exists)
-                PreparedStatement pilotPs = conn.prepareStatement(
-                    "REPLACE INTO flight_pilots (flight_id, pilot_id) VALUES (?, ?)"
-                );
-                pilotPs.setInt(1, flightId);
-                pilotPs.setInt(2, pilotId);
-                pilotPs.executeUpdate();
-
-                // Clear existing crew
-                PreparedStatement clearCrew = conn.prepareStatement(
-                    "DELETE FROM flight_crew WHERE flight_id = ?"
-                );
-                clearCrew.setInt(1, flightId);
-                clearCrew.executeUpdate();
-
-                // Assign crew
-                PreparedStatement crewPs = conn.prepareStatement(
-                    "INSERT INTO flight_crew (flight_id, crew_id) VALUES (?, ?)"
-                );
-
-                for (String crew : crewList.getSelectionModel().getSelectedItems()) {
-                    int crewId = Integer.parseInt(crew.split(" - ")[0]);
-                    crewPs.setInt(1, flightId);
-                    crewPs.setInt(2, crewId);
-                    crewPs.executeUpdate();
-                }
-
-                statusLabel.setText("Pilot & Crew assigned successfully!");
-                statusLabel.setStyle("-fx-text-fill: green;");
-
-            } catch (Exception ex) {
-                statusLabel.setText("Error: " + ex.getMessage());
-                statusLabel.setStyle("-fx-text-fill: red;");
-                ex.printStackTrace();
-            }
-        });
-
-        content.getChildren().addAll(
-            title,
-            new Label("Flight:"), flightBox,
-            new Label("Pilot:"), pilotBox,
-            new Label("Crew Members:"), crewList,
-            assignBtn, statusLabel
-        );
-
-        tab.setContent(new ScrollPane(content));
-        return tab;
-    }
-    private void loadFlights(ComboBox<String> box) {
-        try (Connection conn = DBConnection.getConnection()) {
-            ResultSet rs = conn.createStatement().executeQuery(
-                "SELECT id, flight_number FROM flights"
-            );
-            while (rs.next()) {
-                box.getItems().add(
-                    rs.getInt("id") + " - " + rs.getString("flight_number")
-                );
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void loadPilots(ComboBox<String> box) {
-        try (Connection conn = DBConnection.getConnection()) {
-            ResultSet rs = conn.createStatement().executeQuery(
-                "SELECT u.id, u.name FROM users u WHERE role = 'PILOT'"
-            );
-            while (rs.next()) {
-                box.getItems().add(
-                    rs.getInt("id") + " - " + rs.getString("name")
-                );
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void loadCrew(ListView<String> list) {
-        try (Connection conn = DBConnection.getConnection()) {
-            ResultSet rs = conn.createStatement().executeQuery(
-                "SELECT u.id, u.name FROM users u WHERE role = 'CREW'"
-            );
-            while (rs.next()) {
-                list.getItems().add(
-                    rs.getInt("id") + " - " + rs.getString("name")
-                );
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-
-    
     private Tab createProfileTab() {
         Tab tab = new Tab("My Profile");
         tab.setClosable(false);
@@ -626,70 +467,9 @@ public class PassengerDashboard {
             );
         }
 
-        // ===== Current Flights =====
-        Label flightsTitle = new Label("✈️ Current Flights");
-        flightsTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-
-        VBox flightsBox = new VBox(10);
-        flightsBox.setPadding(new Insets(15));
-        flightsBox.setStyle("-fx-background-color: white; -fx-background-radius: 10px; " +
-                            "-fx-border-color: #ddd; -fx-border-radius: 10px;");
-
-        loadPassengerFlights(flightsBox);
-
-        content.getChildren().addAll(title, infoBox, flightsTitle, flightsBox);
+        content.getChildren().addAll(title, infoBox);
         tab.setContent(new ScrollPane(content));
 
         return tab;
-    }
-    private void loadPassengerFlights(VBox flightsBox) {
-        try (Connection conn = DBConnection.getConnection()) {
-
-            String sql =
-                "SELECT f.flight_number, f.departure_airport, f.arrival_airport, " +
-                "f.flight_date, f.departure_time, f.status " +
-                "FROM flights f " +
-                "JOIN bookings b ON f.id = b.flight_id " +
-                "WHERE b.user_id = ?";
-
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setInt(1, userId);
-            ResultSet rs = ps.executeQuery();
-
-            boolean hasFlights = false;
-
-            while (rs.next()) {
-                hasFlights = true;
-
-                VBox card = new VBox(5);
-                card.setPadding(new Insets(10));
-                card.setStyle("-fx-border-color: #2196F3; -fx-border-radius: 8px; " +
-                              "-fx-background-radius: 8px;");
-
-                card.getChildren().addAll(
-                    new Label("Flight: " + rs.getString("flight_number")),
-                    new Label("Route: " +
-                        rs.getString("departure_airport") + " → " +
-                        rs.getString("arrival_airport")),
-                    new Label("Date: " + rs.getString("flight_date")),
-                    new Label("Departure: " + rs.getString("departure_time")),
-                    new Label("Status: " + rs.getString("status"))
-                );
-
-                flightsBox.getChildren().add(card);
-            }
-
-            if (!hasFlights) {
-                flightsBox.getChildren().add(
-                    new Label("No current flights found.")
-                );
-            }
-
-        } catch (SQLException e) {
-            flightsBox.getChildren().add(
-                new Label("Error loading flights")
-            );
-            e.printStackTrace();
-        }
     }
 }
