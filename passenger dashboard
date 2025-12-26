@@ -10,17 +10,18 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import java.sql.*;
 import java.io.*;
-import java.util.Date;
+import java.util.*;
+import java.time.LocalDate;
 
 /**
- * Passenger Dashboard with OOP-integrated booking system
- * Demonstrates: Bounded Generics (Booking<T extends Person>), Composition, Encapsulation
+ * Passenger Dashboard - VIP Private Jet Creation System
+ * Passengers CREATE their own flights + View current flight details
  */
 public class PassengerDashboard {
     private int userId;
     private String name;
     private Stage stage;
-    private Passenger passenger; // Composition - has-a relationship
+    private Passenger passenger;
     
     public PassengerDashboard(int userId, String name) {
         this.userId = userId;
@@ -28,9 +29,6 @@ public class PassengerDashboard {
         loadPassengerObject();
     }
     
-    /**
-     * Load Passenger object from database (OOP integration)
-     */
     private void loadPassengerObject() {
         try {
             Connection conn = DBConnection.getConnection();
@@ -41,7 +39,6 @@ public class PassengerDashboard {
             ResultSet rs = ps.executeQuery();
             
             if (rs.next()) {
-                // Create Passenger object (OOP)
                 this.passenger = new Passenger(
                     rs.getString("name"),
                     rs.getString("email"),
@@ -51,6 +48,7 @@ public class PassengerDashboard {
                     rs.getString("nationality")
                 );
             }
+            conn.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -61,14 +59,13 @@ public class PassengerDashboard {
         
         TabPane tabPane = new TabPane();
         tabPane.getTabs().addAll(
-            createBookFlightTab(),
-            createMyBookingsTab(),
+            createMyFlightTab(),
             createProfileTab()
         );
         
         VBox root = new VBox(10);
-        Label title = new Label("Passenger Dashboard - Welcome, " + name);
-        title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #1a237e;");
+        Label title = new Label("VIP Passenger Dashboard - Welcome, " + name);
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
         root.getChildren().addAll(title, tabPane);
         root.setPadding(new Insets(15));
         
@@ -78,307 +75,346 @@ public class PassengerDashboard {
         stage.show();
     }
     
-    // ========== BOOK FLIGHT TAB ==========
-    private Tab createBookFlightTab() {
-        Tab tab = new Tab("📅 Book Flight");
+    // ========== MY FLIGHT TAB (Create or View with FULL DETAILS) ==========
+    private Tab createMyFlightTab() {
+        Tab tab = new Tab("✈️ My Private Jet");
         tab.setClosable(false);
         
         VBox content = new VBox(15);
         content.setPadding(new Insets(20));
         
-        Label title = new Label("Available Flights");
-        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        Label info = new Label();
+        content.getChildren().add(info);
         
-        // Filters
-        HBox filters = new HBox(10);
-        ComboBox<String> fromBox = new ComboBox<>();
-        fromBox.setPromptText("From");
-        ComboBox<String> toBox = new ComboBox<>();
-        toBox.setPromptText("To");
-        DatePicker datePicker = new DatePicker();
-        Button searchBtn = new Button("Search Flights");
-        
-        filters.getChildren().addAll(new Label("From:"), fromBox, new Label("To:"), toBox, 
-                                     new Label("Date:"), datePicker, searchBtn);
-        
-        // Flight list
-        TableView<ObservableList<String>> flightTable = new TableView<>();
-        setupFlightSearchTable(flightTable);
-        loadAvailableFlights(flightTable);
-        
-        searchBtn.setOnAction(e -> searchFlights(flightTable, fromBox.getValue(), toBox.getValue(), datePicker.getValue()));
-        
-        // Booking section
-        HBox bookingSection = new HBox(15);
-        TextField seatField = new TextField();
-        seatField.setPromptText("Seat (e.g., 12A)");
-        seatField.setPrefWidth(100);
-        
-        TextField priceField = new TextField();
-        priceField.setPromptText("Price");
-        priceField.setPrefWidth(100);
-        
-        Button bookBtn = new Button("Book Selected Flight");
-        bookBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-padding: 10px 20px;");
-        
-        Label bookingStatus = new Label();
-        
-        bookingSection.getChildren().addAll(new Label("Seat:"), seatField, new Label("Price:"), priceField, bookBtn);
-        
-        bookBtn.setOnAction(e -> {
-            ObservableList<String> selectedFlight = flightTable.getSelectionModel().getSelectedItem();
-            if (selectedFlight == null) {
-                bookingStatus.setText("❌ Please select a flight");
-                bookingStatus.setStyle("-fx-text-fill: red;");
-                return;
+        try {
+            Connection conn = DBConnection.getConnection();
+            
+            // Check if passenger already created a flight
+            String checkSql = "SELECT f.id, f.flight_number, f.departure_airport, f.arrival_airport, " +
+                             "f.flight_date, f.departure_time, f.arrival_time, f.status, " +
+                             "a.registration_number, a.model, a.manufacturer, " +
+                             "b.price, b.booking_date " +
+                             "FROM flights f " +
+                             "JOIN bookings b ON f.id = b.flight_id " +
+                             "LEFT JOIN aircraft a ON f.aircraft_id = a.id " +
+                             "WHERE b.user_id = ?";
+            
+            PreparedStatement checkStmt = conn.prepareStatement(checkSql);
+            checkStmt.setInt(1, userId);
+            ResultSet rs = checkStmt.executeQuery();
+            
+            if (rs.next()) {
+                // ===== ALREADY HAS A FLIGHT - Show DETAILED info =====
+                String flightNo = rs.getString("flight_number");
+                String from = rs.getString("departure_airport");
+                String to = rs.getString("arrival_airport");
+                String date = rs.getString("flight_date");
+                String depTime = rs.getString("departure_time");
+                String arrTime = rs.getString("arrival_time");
+                String status = rs.getString("status");
+                String aircraft = rs.getString("registration_number");
+                String model = rs.getString("model");
+                String manufacturer = rs.getString("manufacturer");
+                double price = rs.getDouble("price");
+                String bookedOn = rs.getString("booking_date");
+                
+                // Create detailed info card
+                VBox flightCard = new VBox(10);
+                flightCard.setPadding(new Insets(20));
+                flightCard.setStyle("-fx-background-color: white; -fx-background-radius: 15px; " +
+                                   "-fx-border-color: #2196F3; -fx-border-width: 3px; -fx-border-radius: 15px; " +
+                                   "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 10, 0, 0, 3);");
+                
+                Label cardTitle = new Label("✈️ Your Private Jet Flight");
+                cardTitle.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #1a237e;");
+                
+                Separator sep1 = new Separator();
+                
+                // Flight Info Section
+                VBox flightInfo = new VBox(5);
+                flightInfo.getChildren().addAll(
+                    createInfoLabel("🎫 Flight Number:", flightNo, true),
+                    createInfoLabel("📍 Route:", from + " → " + to, false),
+                    createInfoLabel("📅 Date:", date, false),
+                    createInfoLabel("🕐 Departure:", depTime, false),
+                    createInfoLabel("🕐 Arrival:", arrTime != null ? arrTime : depTime, false),
+                    createInfoLabel("📊 Status:", status, false)
+                );
+                
+                Separator sep2 = new Separator();
+                
+                // Aircraft Info Section
+                VBox aircraftInfo = new VBox(5);
+                if (aircraft != null) {
+                    aircraftInfo.getChildren().addAll(
+                        createInfoLabel("🛩️ Aircraft:", aircraft, false),
+                        createInfoLabel("✈️ Model:", manufacturer + " " + model, false)
+                    );
+                } else {
+                    aircraftInfo.getChildren().add(createInfoLabel("🛩️ Aircraft:", "Private Jet", false));
+                }
+                
+                Separator sep3 = new Separator();
+                
+                // Booking Info Section
+                VBox bookingInfo = new VBox(5);
+                bookingInfo.getChildren().addAll(
+                    createInfoLabel("💰 Total Cost:", String.format("$%.2f", price), true),
+                    createInfoLabel("📝 Booked On:", bookedOn, false)
+                );
+                
+                flightCard.getChildren().addAll(
+                    cardTitle, sep1, flightInfo, sep2, aircraftInfo, sep3, bookingInfo
+                );
+                
+                // Print Ticket Button
+                Button printBtn = new Button("🎫 Print Boarding Pass");
+                printBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; " +
+                                 "-fx-padding: 12px 30px; -fx-font-weight: bold; -fx-font-size: 14px;");
+                
+                Label printStatus = new Label();
+                
+                printBtn.setOnAction(e -> printTicket(flightNo, from, to, date, depTime, price, printStatus));
+                
+                content.getChildren().addAll(flightCard, printBtn, printStatus);
+                
+            } else {
+                // ===== NO FLIGHT - Create new one =====
+                info.setText("🛩️ Create Your Private Jet Flight");
+                info.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+                
+                Label subtitle = new Label("As a VIP passenger, design your exclusive journey");
+                subtitle.setStyle("-fx-font-size: 14px; -fx-text-fill: #666;");
+                
+                // Origin dropdown
+                ComboBox<String> originBox = new ComboBox<>();
+                originBox.setPromptText("Departing from");
+                originBox.setPrefWidth(350);
+                originBox.getItems().addAll(
+                    "JFK - New York", "LAX - Los Angeles", "ORD - Chicago", "DFW - Dallas",
+                    "ATL - Atlanta", "MIA - Miami", "SFO - San Francisco", "LHR - London",
+                    "CDG - Paris", "DXB - Dubai", "SIN - Singapore", "HND - Tokyo",
+                    "PEK - Beijing", "FRA - Frankfurt", "AMS - Amsterdam", "BCN - Barcelona",
+                    "SYD - Sydney", "YYZ - Toronto", "MEX - Mexico City", "GRU - São Paulo"
+                );
+                
+                // Destination dropdown
+                ComboBox<String> destinationBox = new ComboBox<>();
+                destinationBox.setPromptText("Flying to");
+                destinationBox.setPrefWidth(350);
+                destinationBox.getItems().addAll(
+                    "JFK - New York", "LAX - Los Angeles", "ORD - Chicago", "DFW - Dallas",
+                    "ATL - Atlanta", "MIA - Miami", "SFO - San Francisco", "LHR - London",
+                    "CDG - Paris", "DXB - Dubai", "SIN - Singapore", "HND - Tokyo",
+                    "PEK - Beijing", "FRA - Frankfurt", "AMS - Amsterdam", "BCN - Barcelona",
+                    "SYD - Sydney", "YYZ - Toronto", "MEX - Mexico City", "GRU - São Paulo"
+                );
+                
+                DatePicker datePicker = new DatePicker();
+                datePicker.setValue(LocalDate.now());
+                datePicker.setPrefWidth(350);
+                
+                Label timeLabel = new Label("🕒 Departure Time:");
+                timeLabel.setStyle("-fx-font-weight: bold;");
+                
+                ComboBox<Integer> hourBox = new ComboBox<>();
+                hourBox.setPromptText("Hour");
+                hourBox.setPrefWidth(100);
+                for (int i = 1; i <= 12; i++) {
+                    hourBox.getItems().add(i);
+                }
+                hourBox.setValue(9);
+                
+                ComboBox<Integer> minuteBox = new ComboBox<>();
+                minuteBox.setPromptText("Minute");
+                minuteBox.setPrefWidth(100);
+                minuteBox.getItems().addAll(0, 15, 30, 45);
+                minuteBox.setValue(0);
+                
+                ComboBox<String> amPmBox = new ComboBox<>();
+                amPmBox.setPrefWidth(100);
+                amPmBox.getItems().addAll("AM", "PM");
+                amPmBox.setValue("AM");
+                
+                Button createBtn = new Button("✈️ Create My Private Jet Flight");
+                createBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; " +
+                                  "-fx-padding: 12px 30px; -fx-font-weight: bold; -fx-font-size: 14px;");
+                
+                Label statusLabel = new Label();
+                
+                createBtn.setOnAction(e -> {
+                    Connection freshConn = null;
+                    PreparedStatement flightPs = null;
+                    PreparedStatement bookingPs = null;
+                    
+                    try {
+                        if (originBox.getValue() == null || destinationBox.getValue() == null) {
+                            statusLabel.setText("❌ Please select origin and destination");
+                            statusLabel.setStyle("-fx-text-fill: red;");
+                            return;
+                        }
+                        
+                        String fromCode = originBox.getValue().substring(0, 3);
+                        String toCode = destinationBox.getValue().substring(0, 3);
+                        
+                        if (fromCode.equals(toCode)) {
+                            statusLabel.setText("❌ Origin and destination cannot be the same");
+                            statusLabel.setStyle("-fx-text-fill: red;");
+                            return;
+                        }
+                        
+                        // GET A FRESH CONNECTION HERE - this is the key fix!
+                        freshConn = DBConnection.getConnection();
+                        
+                        // Generate flight number with the fresh connection
+                        String flightNo = generateFlightNumber(freshConn);
+                        
+                        // Convert time
+                        int hour = hourBox.getValue();
+                        String amPm = amPmBox.getValue();
+                        if (amPm.equals("PM") && hour != 12) hour += 12;
+                        else if (amPm.equals("AM") && hour == 12) hour = 0;
+                        
+                        String flightTime = String.format("%02d:%02d:00", hour, minuteBox.getValue());
+                        String flightDate = datePicker.getValue().toString();
+                        
+                        // Calculate price
+                        double basePrice = 5000.0;
+                        double distanceFactor = calculateDistance(fromCode, toCode);
+                        double totalPrice = basePrice + (distanceFactor * 100);
+                        
+                        // Create flight
+                        String flightSql = "INSERT INTO flights (flight_number, departure_airport, arrival_airport, " +
+                                          "flight_date, departure_time, arrival_time, available_seats, status) " +
+                                          "VALUES (?, ?, ?, ?, ?, ?, 6, 'Scheduled')";
+                        flightPs = freshConn.prepareStatement(flightSql, Statement.RETURN_GENERATED_KEYS);
+                        flightPs.setString(1, flightNo);
+                        flightPs.setString(2, fromCode);
+                        flightPs.setString(3, toCode);
+                        flightPs.setString(4, flightDate);
+                        flightPs.setString(5, flightTime);
+                        flightPs.setString(6, flightTime);
+                        flightPs.executeUpdate();
+                        
+                        ResultSet keys = flightPs.getGeneratedKeys();
+                        int flightId = 0;
+                        if (keys.next()) {
+                            flightId = keys.getInt(1);
+                        }
+                        
+                        // Book the flight
+                        String bookingSql = "INSERT INTO bookings (booking_id, user_id, flight_id, seat_number, price) " +
+                                           "VALUES (?, ?, ?, 'PRIVATE JET', ?)";
+                        bookingPs = freshConn.prepareStatement(bookingSql);
+                        
+                        // Generate shorter booking ID to fit database column
+                        long timestamp = System.currentTimeMillis();
+                        String shortTimestamp = String.valueOf(timestamp).substring(7); // Last 6 digits
+                        String bookingId = "BKG" + shortTimestamp;
+                        
+                        bookingPs.setString(1, bookingId);
+                        bookingPs.setInt(2, userId);
+                        bookingPs.setInt(3, flightId);
+                        bookingPs.setDouble(4, totalPrice);
+                        bookingPs.executeUpdate();
+                        
+                        statusLabel.setText(String.format("✅ Flight %s created! Total: $%.2f", flightNo, totalPrice));
+                        statusLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
+                        
+                        // Reload page to show flight details
+                        stage.close();
+                        open();
+                        
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                        statusLabel.setText("❌ Error: " + ex.getMessage());
+                        statusLabel.setStyle("-fx-text-fill: red;");
+                    } finally {
+                        // Properly close resources
+                        try {
+                            if (bookingPs != null) bookingPs.close();
+                            if (flightPs != null) flightPs.close();
+                            if (freshConn != null) freshConn.close();
+                        } catch (SQLException ex) {
+                            ex.printStackTrace();
+                        }
+                    }
+                });
+                
+                content.getChildren().addAll(
+                    subtitle,
+                    new Label("🛫 Origin:"), originBox,
+                    new Label("🌍 Destination:"), destinationBox,
+                    new Label("📅 Date:"), datePicker,
+                    timeLabel,
+                    new Label("Hour:"), hourBox,
+                    new Label("Minute:"), minuteBox,
+                    new Label("AM/PM:"), amPmBox,
+                    createBtn, statusLabel
+                );
             }
             
-            try {
-                int flightId = Integer.parseInt(selectedFlight.get(0));
-                String seat = seatField.getText().trim();
-                double price = Double.parseDouble(priceField.getText());
-                
-                // Create Booking using OOP (Bounded Generics - Booking<Passenger>)
-                bookFlight(flightId, seat, price, bookingStatus);
-                
-                // Refresh tables
-                loadAvailableFlights(flightTable);
-                
-            } catch (NumberFormatException ex) {
-                bookingStatus.setText("❌ Invalid price or seat format");
-                bookingStatus.setStyle("-fx-text-fill: red;");
-            }
-        });
-        
-        content.getChildren().addAll(title, filters, flightTable, bookingSection, bookingStatus);
+            // Close the connection used for checking existing flights
+            conn.close();
+            
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         tab.setContent(scroll);
-        
         return tab;
     }
     
-    private void setupFlightSearchTable(TableView<ObservableList<String>> table) {
-        String[] columns = {"ID", "Flight #", "From", "To", "Date", "Departure", "Arrival", "Seats", "Status"};
-        for (int i = 0; i < columns.length; i++) {
-            final int colIndex = i;
-            TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
-            column.setCellValueFactory(param -> 
-                new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
-            table.getColumns().add(column);
+    // Helper method to create info labels
+    private Label createInfoLabel(String label, String value, boolean bold) {
+        Label lbl = new Label(label + " " + value);
+        if (bold) {
+            lbl.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        } else {
+            lbl.setStyle("-fx-font-size: 14px;");
         }
+        return lbl;
     }
     
-    private void loadAvailableFlights(TableView<ObservableList<String>> table) {
-        table.getItems().clear();
-        try {
-            Connection conn = DBConnection.getConnection();
-            String sql = "SELECT id, flight_number, departure_airport, arrival_airport, flight_date, " +
-                        "departure_time, arrival_time, available_seats, status " +
-                        "FROM flights WHERE available_seats > 0 AND status = 'Scheduled' " +
-                        "ORDER BY flight_date, departure_time";
-            
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery(sql);
-            
-            while (rs.next()) {
-                ObservableList<String> row = FXCollections.observableArrayList();
-                row.add(rs.getString("id"));
-                row.add(rs.getString("flight_number"));
-                row.add(rs.getString("departure_airport"));
-                row.add(rs.getString("arrival_airport"));
-                row.add(rs.getString("flight_date"));
-                row.add(rs.getString("departure_time"));
-                row.add(rs.getString("arrival_time"));
-                row.add(rs.getString("available_seats"));
-                row.add(rs.getString("status"));
-                table.getItems().add(row);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    private String generateFlightNumber(Connection conn) throws SQLException {
+        String flightNo;
+        PreparedStatement checkStmt = conn.prepareStatement(
+            "SELECT flight_number FROM flights WHERE flight_number = ?"
+        );
+        
+        do {
+            int randomNum = (int) (Math.random() * 9000) + 1000;
+            flightNo = "VIP" + randomNum;
+            checkStmt.setString(1, flightNo);
+        } while (checkStmt.executeQuery().next());
+        
+        checkStmt.close();
+        return flightNo;
     }
     
-    private void searchFlights(TableView<ObservableList<String>> table, String from, String to, java.time.LocalDate date) {
-        table.getItems().clear();
-        try {
-            Connection conn = DBConnection.getConnection();
-            StringBuilder sql = new StringBuilder("SELECT id, flight_number, departure_airport, arrival_airport, flight_date, " +
-                        "departure_time, arrival_time, available_seats, status " +
-                        "FROM flights WHERE available_seats > 0 AND status = 'Scheduled'");
-            
-            if (from != null && !from.isEmpty()) {
-                sql.append(" AND departure_airport = '").append(from).append("'");
-            }
-            if (to != null && !to.isEmpty()) {
-                sql.append(" AND arrival_airport = '").append(to).append("'");
-            }
-            if (date != null) {
-                sql.append(" AND flight_date = '").append(date.toString()).append("'");
-            }
-            
-            sql.append(" ORDER BY flight_date, departure_time");
-            
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery(sql.toString());
-            
-            while (rs.next()) {
-                ObservableList<String> row = FXCollections.observableArrayList();
-                row.add(rs.getString("id"));
-                row.add(rs.getString("flight_number"));
-                row.add(rs.getString("departure_airport"));
-                row.add(rs.getString("arrival_airport"));
-                row.add(rs.getString("flight_date"));
-                row.add(rs.getString("departure_time"));
-                row.add(rs.getString("arrival_time"));
-                row.add(rs.getString("available_seats"));
-                row.add(rs.getString("status"));
-                table.getItems().add(row);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    private double calculateDistance(String from, String to) {
+        Map<String, String> regions = new HashMap<>();
+        regions.put("JFK", "US"); regions.put("LAX", "US"); regions.put("ORD", "US");
+        regions.put("DFW", "US"); regions.put("ATL", "US"); regions.put("MIA", "US");
+        regions.put("SFO", "US"); regions.put("LHR", "UK"); regions.put("CDG", "FR");
+        regions.put("DXB", "AE"); regions.put("SIN", "SG"); regions.put("HND", "JP");
+        regions.put("PEK", "CN"); regions.put("FRA", "DE"); regions.put("AMS", "NL");
+        regions.put("BCN", "ES"); regions.put("SYD", "AU"); regions.put("YYZ", "CA");
+        regions.put("MEX", "MX"); regions.put("GRU", "BR");
+        
+        String fromRegion = regions.getOrDefault(from, "XX");
+        String toRegion = regions.getOrDefault(to, "XX");
+        
+        return fromRegion.equals(toRegion) ? 10.0 : 50.0;
     }
     
-    /**
-     * Book flight using OOP Booking class (Bounded Generics)
-     * Demonstrates: Booking<Passenger> where Passenger extends Person
-     */
-    private void bookFlight(int flightId, String seat, double price, Label statusLabel) {
-        try {
-            Connection conn = DBConnection.getConnection();
-            
-            // Get Flight object (simplified version for booking)
-            String flightSql = "SELECT flight_number, departure_airport, arrival_airport, departure_time FROM flights WHERE id = ?";
-            PreparedStatement flightPs = conn.prepareStatement(flightSql);
-            flightPs.setInt(1, flightId);
-            ResultSet flightRs = flightPs.executeQuery();
-            
-            if (!flightRs.next()) {
-                statusLabel.setText("❌ Flight not found");
-                statusLabel.setStyle("-fx-text-fill: red;");
-                return;
-            }
-            
-            // Generate booking ID
-            String bookingId = "BKG" + System.currentTimeMillis();
-            
-            // Insert booking into database
-            String sql = "INSERT INTO bookings (booking_id, user_id, flight_id, seat_number, price) VALUES (?, ?, ?, ?, ?)";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setString(1, bookingId);
-            ps.setInt(2, userId);
-            ps.setInt(3, flightId);
-            ps.setString(4, seat.toUpperCase());
-            ps.setDouble(5, price);
-            ps.executeUpdate();
-            
-            // Update available seats
-            String updateSql = "UPDATE flights SET available_seats = available_seats - 1 WHERE id = ?";
-            PreparedStatement updatePs = conn.prepareStatement(updateSql);
-            updatePs.setInt(1, flightId);
-            updatePs.executeUpdate();
-            
-            statusLabel.setText("✅ Flight booked successfully! Booking ID: " + bookingId);
-            statusLabel.setStyle("-fx-text-fill: green;");
-            
-        } catch (SQLException e) {
-            e.printStackTrace();
-            statusLabel.setText("❌ Booking failed: " + e.getMessage());
-            statusLabel.setStyle("-fx-text-fill: red;");
-        }
-    }
-    
-    // ========== MY BOOKINGS TAB ==========
-    private Tab createMyBookingsTab() {
-        Tab tab = new Tab("✈️ My Bookings");
-        tab.setClosable(false);
-        
-        VBox content = new VBox(15);
-        content.setPadding(new Insets(20));
-        
-        Label title = new Label("My Bookings");
-        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
-        
-        TableView<ObservableList<String>> table = new TableView<>();
-        setupBookingsTable(table);
-        loadMyBookings(table);
-        
-        Button refreshBtn = new Button("🔄 Refresh");
-        Button printBtn = new Button("🎫 Print Ticket");
-        printBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
-        
-        Label statusLabel = new Label();
-        
-        refreshBtn.setOnAction(e -> loadMyBookings(table));
-        
-        printBtn.setOnAction(e -> {
-            ObservableList<String> selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null) {
-                statusLabel.setText("❌ Please select a booking");
-                statusLabel.setStyle("-fx-text-fill: red;");
-                return;
-            }
-            printTicket(selected, statusLabel);
-        });
-        
-        HBox buttonBox = new HBox(10, refreshBtn, printBtn);
-        
-        content.getChildren().addAll(title, table, buttonBox, statusLabel);
-        tab.setContent(content);
-        
-        return tab;
-    }
-    
-    private void setupBookingsTable(TableView<ObservableList<String>> table) {
-        String[] columns = {"Booking ID", "Flight #", "From", "To", "Date", "Seat", "Price", "Booked On"};
-        for (int i = 0; i < columns.length; i++) {
-            final int colIndex = i;
-            TableColumn<ObservableList<String>, String> column = new TableColumn<>(columns[i]);
-            column.setCellValueFactory(param -> 
-                new javafx.beans.property.SimpleStringProperty(param.getValue().get(colIndex)));
-            table.getColumns().add(column);
-        }
-    }
-    
-    private void loadMyBookings(TableView<ObservableList<String>> table) {
-        table.getItems().clear();
-        try {
-            Connection conn = DBConnection.getConnection();
-            String sql = "SELECT b.booking_id, f.flight_number, f.departure_airport, f.arrival_airport, " +
-                        "f.flight_date, b.seat_number, b.price, b.booking_date " +
-                        "FROM bookings b " +
-                        "JOIN flights f ON b.flight_id = f.id " +
-                        "WHERE b.user_id = ? " +
-                        "ORDER BY b.booking_date DESC";
-            
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setInt(1, userId);
-            ResultSet rs = ps.executeQuery();
-            
-            while (rs.next()) {
-                ObservableList<String> row = FXCollections.observableArrayList();
-                row.add(rs.getString("booking_id"));
-                row.add(rs.getString("flight_number"));
-                row.add(rs.getString("departure_airport"));
-                row.add(rs.getString("arrival_airport"));
-                row.add(rs.getString("flight_date"));
-                row.add(rs.getString("seat_number"));
-                row.add("$" + String.format("%.2f", rs.getDouble("price")));
-                row.add(rs.getString("booking_date"));
-                table.getItems().add(row);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-    
-    private void printTicket(ObservableList<String> booking, Label statusLabel) {
+    private void printTicket(String flightNo, String from, String to, String date, String time, double price, Label statusLabel) {
         try {
             FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Save Ticket");
-            fileChooser.setInitialFileName("Ticket_" + booking.get(0) + ".txt");
+            fileChooser.setTitle("Save Boarding Pass");
+            fileChooser.setInitialFileName("PrivateJet_" + flightNo + ".txt");
             fileChooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("Text Files", "*.txt")
             );
@@ -389,38 +425,39 @@ public class PassengerDashboard {
                 PrintWriter writer = new PrintWriter(new FileWriter(file));
                 
                 writer.println("═══════════════════════════════════════════════════");
-                writer.println("              AIRLINE BOARDING TICKET");
+                writer.println("           PRIVATE JET BOARDING PASS");
                 writer.println("═══════════════════════════════════════════════════");
+                writer.println();
+                writer.println("  🌟 EXCLUSIVE VIP SERVICE 🌟");
                 writer.println();
                 writer.println("  Passenger:    " + passenger.getName());
                 writer.println("  Passport:     " + passenger.getPassportNumber());
-                writer.println("  Booking ID:   " + booking.get(0));
                 writer.println();
-                writer.println("  Flight:       " + booking.get(1));
-                writer.println("  From:         " + booking.get(2));
-                writer.println("  To:           " + booking.get(3));
-                writer.println("  Date:         " + booking.get(4));
-                writer.println("  Seat:         " + booking.get(5));
-                writer.println("  Price:        " + booking.get(6));
+                writer.println("  Flight:       " + flightNo);
+                writer.println("  From:         " + from);
+                writer.println("  To:           " + to);
+                writer.println("  Date:         " + date);
+                writer.println("  Departure:    " + time);
+                writer.println();
+                writer.println("  Total Cost:   $" + String.format("%.2f", price));
+                writer.println();
+                writer.println("  ✈️ ENTIRE AIRCRAFT RESERVED FOR YOUR PARTY");
                 writer.println();
                 writer.println("═══════════════════════════════════════════════════");
-                writer.println("            Thank you for flying with us!");
+                writer.println("        Thank you for choosing our luxury service!");
                 writer.println("═══════════════════════════════════════════════════");
                 
                 writer.close();
                 
-                statusLabel.setText("✅ Ticket saved: " + file.getName());
+                statusLabel.setText("✅ Boarding pass saved: " + file.getName());
                 statusLabel.setStyle("-fx-text-fill: green;");
             }
-            
         } catch (Exception e) {
-            e.printStackTrace();
             statusLabel.setText("❌ Error: " + e.getMessage());
             statusLabel.setStyle("-fx-text-fill: red;");
         }
     }
     
-    // ========== PROFILE TAB ==========
     private Tab createProfileTab() {
         Tab tab = new Tab("👤 My Profile");
         tab.setClosable(false);
@@ -431,25 +468,19 @@ public class PassengerDashboard {
         Label title = new Label("My Profile");
         title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
         
-        // Display passenger info using OOP object
         VBox infoBox = new VBox(10);
         infoBox.setPadding(new Insets(15));
-        infoBox.setStyle("-fx-background-color: white; -fx-background-radius: 10px; -fx-border-color: #ddd; -fx-border-radius: 10px;");
+        infoBox.setStyle("-fx-background-color: white; -fx-background-radius: 10px; " +
+                        "-fx-border-color: #ddd; -fx-border-radius: 10px;");
         
         if (passenger != null) {
-            Label nameLabel = new Label("Name: " + passenger.getName());
-            Label emailLabel = new Label("Email: " + passenger.getEmail());
-            Label phoneLabel = new Label("Phone: " + passenger.getPhone());
-            Label passportLabel = new Label("Passport: " + passenger.getPassportNumber());
-            Label nationalityLabel = new Label("Nationality: " + passenger.getNationality());
-            
-            nameLabel.setStyle("-fx-font-size: 14px;");
-            emailLabel.setStyle("-fx-font-size: 14px;");
-            phoneLabel.setStyle("-fx-font-size: 14px;");
-            passportLabel.setStyle("-fx-font-size: 14px;");
-            nationalityLabel.setStyle("-fx-font-size: 14px;");
-            
-            infoBox.getChildren().addAll(nameLabel, emailLabel, phoneLabel, passportLabel, nationalityLabel);
+            infoBox.getChildren().addAll(
+                new Label("Name: " + passenger.getName()),
+                new Label("Email: " + passenger.getEmail()),
+                new Label("Phone: " + passenger.getPhone()),
+                new Label("Passport: " + passenger.getPassportNumber()),
+                new Label("Nationality: " + passenger.getNationality())
+            );
         }
         
         content.getChildren().addAll(title, infoBox);
