@@ -408,6 +408,7 @@ public class PassengerDashboard {
         String toRegion = regions.getOrDefault(to, "XX");
         
         return fromRegion.equals(toRegion) ? 10.0 : 50.0;
+        
     }
     
     private void printTicket(String flightNo, String from, String to, String date, String time, double price, Label statusLabel) {
@@ -457,22 +458,164 @@ public class PassengerDashboard {
             statusLabel.setStyle("-fx-text-fill: red;");
         }
     }
+    private Tab createAssignmentTab() {
+        Tab tab = new Tab("🧑‍✈️ Assign Crew");
+        tab.setClosable(false);
+
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(15));
+
+        Label title = new Label("Assign Pilots & Crew to Flights");
+        title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+
+        // Flight selector
+        ComboBox<String> flightBox = new ComboBox<>();
+        flightBox.setPrefWidth(450);
+        flightBox.setPromptText("Select Flight");
+        loadFlights(flightBox);
+
+        // Pilot selector
+        ComboBox<String> pilotBox = new ComboBox<>();
+        pilotBox.setPrefWidth(450);
+        pilotBox.setPromptText("Select Pilot");
+        loadPilots(pilotBox);
+
+        // Crew selector (MULTI SELECT)
+        ListView<String> crewList = new ListView<>();
+        crewList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        crewList.setPrefHeight(200);
+        loadCrew(crewList);
+
+        Button assignBtn = new Button("✅ Assign to Flight");
+        assignBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
+
+        Label statusLabel = new Label();
+
+        assignBtn.setOnAction(e -> {
+            if (flightBox.getValue() == null || pilotBox.getValue() == null ||
+                crewList.getSelectionModel().getSelectedItems().isEmpty()) {
+
+                statusLabel.setText("❌ Select flight, pilot, and crew");
+                statusLabel.setStyle("-fx-text-fill: red;");
+                return;
+            }
+
+            int flightId = Integer.parseInt(flightBox.getValue().split(" - ")[0]);
+            int pilotId = Integer.parseInt(pilotBox.getValue().split(" - ")[0]);
+
+            try (Connection conn = DBConnection.getConnection()) {
+
+                // Assign pilot (replace if exists)
+                PreparedStatement pilotPs = conn.prepareStatement(
+                    "REPLACE INTO flight_pilots (flight_id, pilot_id) VALUES (?, ?)"
+                );
+                pilotPs.setInt(1, flightId);
+                pilotPs.setInt(2, pilotId);
+                pilotPs.executeUpdate();
+
+                // Clear existing crew
+                PreparedStatement clearCrew = conn.prepareStatement(
+                    "DELETE FROM flight_crew WHERE flight_id = ?"
+                );
+                clearCrew.setInt(1, flightId);
+                clearCrew.executeUpdate();
+
+                // Assign crew
+                PreparedStatement crewPs = conn.prepareStatement(
+                    "INSERT INTO flight_crew (flight_id, crew_id) VALUES (?, ?)"
+                );
+
+                for (String crew : crewList.getSelectionModel().getSelectedItems()) {
+                    int crewId = Integer.parseInt(crew.split(" - ")[0]);
+                    crewPs.setInt(1, flightId);
+                    crewPs.setInt(2, crewId);
+                    crewPs.executeUpdate();
+                }
+
+                statusLabel.setText("✅ Pilot & Crew assigned successfully!");
+                statusLabel.setStyle("-fx-text-fill: green;");
+
+            } catch (Exception ex) {
+                statusLabel.setText("❌ Error: " + ex.getMessage());
+                statusLabel.setStyle("-fx-text-fill: red;");
+                ex.printStackTrace();
+            }
+        });
+
+        content.getChildren().addAll(
+            title,
+            new Label("✈️ Flight:"), flightBox,
+            new Label("🧑‍✈️ Pilot:"), pilotBox,
+            new Label("👥 Crew Members:"), crewList,
+            assignBtn, statusLabel
+        );
+
+        tab.setContent(new ScrollPane(content));
+        return tab;
+    }
+    private void loadFlights(ComboBox<String> box) {
+        try (Connection conn = DBConnection.getConnection()) {
+            ResultSet rs = conn.createStatement().executeQuery(
+                "SELECT id, flight_number FROM flights"
+            );
+            while (rs.next()) {
+                box.getItems().add(
+                    rs.getInt("id") + " - " + rs.getString("flight_number")
+                );
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void loadPilots(ComboBox<String> box) {
+        try (Connection conn = DBConnection.getConnection()) {
+            ResultSet rs = conn.createStatement().executeQuery(
+                "SELECT u.id, u.name FROM users u WHERE role = 'PILOT'"
+            );
+            while (rs.next()) {
+                box.getItems().add(
+                    rs.getInt("id") + " - " + rs.getString("name")
+                );
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void loadCrew(ListView<String> list) {
+        try (Connection conn = DBConnection.getConnection()) {
+            ResultSet rs = conn.createStatement().executeQuery(
+                "SELECT u.id, u.name FROM users u WHERE role = 'CREW'"
+            );
+            while (rs.next()) {
+                list.getItems().add(
+                    rs.getInt("id") + " - " + rs.getString("name")
+                );
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+
     
     private Tab createProfileTab() {
         Tab tab = new Tab("👤 My Profile");
         tab.setClosable(false);
-        
-        VBox content = new VBox(15);
+
+        VBox content = new VBox(20);
         content.setPadding(new Insets(20));
-        
+
         Label title = new Label("My Profile");
         title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
-        
+
+        // ===== Passenger Info =====
         VBox infoBox = new VBox(10);
         infoBox.setPadding(new Insets(15));
         infoBox.setStyle("-fx-background-color: white; -fx-background-radius: 10px; " +
-                        "-fx-border-color: #ddd; -fx-border-radius: 10px;");
-        
+                         "-fx-border-color: #ddd; -fx-border-radius: 10px;");
+
         if (passenger != null) {
             infoBox.getChildren().addAll(
                 new Label("Name: " + passenger.getName()),
@@ -482,10 +625,71 @@ public class PassengerDashboard {
                 new Label("Nationality: " + passenger.getNationality())
             );
         }
-        
-        content.getChildren().addAll(title, infoBox);
-        tab.setContent(content);
-        
+
+        // ===== Current Flights =====
+        Label flightsTitle = new Label("✈️ Current Flights");
+        flightsTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+
+        VBox flightsBox = new VBox(10);
+        flightsBox.setPadding(new Insets(15));
+        flightsBox.setStyle("-fx-background-color: white; -fx-background-radius: 10px; " +
+                            "-fx-border-color: #ddd; -fx-border-radius: 10px;");
+
+        loadPassengerFlights(flightsBox);
+
+        content.getChildren().addAll(title, infoBox, flightsTitle, flightsBox);
+        tab.setContent(new ScrollPane(content));
+
         return tab;
+    }
+    private void loadPassengerFlights(VBox flightsBox) {
+        try (Connection conn = DBConnection.getConnection()) {
+
+            String sql =
+                "SELECT f.flight_number, f.departure_airport, f.arrival_airport, " +
+                "f.flight_date, f.departure_time, f.status " +
+                "FROM flights f " +
+                "JOIN bookings b ON f.id = b.flight_id " +
+                "WHERE b.user_id = ?";
+
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, userId);
+            ResultSet rs = ps.executeQuery();
+
+            boolean hasFlights = false;
+
+            while (rs.next()) {
+                hasFlights = true;
+
+                VBox card = new VBox(5);
+                card.setPadding(new Insets(10));
+                card.setStyle("-fx-border-color: #2196F3; -fx-border-radius: 8px; " +
+                              "-fx-background-radius: 8px;");
+
+                card.getChildren().addAll(
+                    new Label("Flight: " + rs.getString("flight_number")),
+                    new Label("Route: " +
+                        rs.getString("departure_airport") + " → " +
+                        rs.getString("arrival_airport")),
+                    new Label("Date: " + rs.getString("flight_date")),
+                    new Label("Departure: " + rs.getString("departure_time")),
+                    new Label("Status: " + rs.getString("status"))
+                );
+
+                flightsBox.getChildren().add(card);
+            }
+
+            if (!hasFlights) {
+                flightsBox.getChildren().add(
+                    new Label("No current flights found.")
+                );
+            }
+
+        } catch (SQLException e) {
+            flightsBox.getChildren().add(
+                new Label("❌ Error loading flights")
+            );
+            e.printStackTrace();
+        }
     }
 }
