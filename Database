@@ -1,9 +1,19 @@
--- Drop existing database and create new one
+/* =====================================================
+   AIRLINE OOP SYSTEM DATABASE
+   Matches Java OOP Inheritance & Relationships
+   ===================================================== */
+
+/* =====================
+   1. DATABASE
+   ===================== */
 DROP DATABASE IF EXISTS airline_oop_system;
 CREATE DATABASE airline_oop_system;
 USE airline_oop_system;
 
--- Users table (base for all person types)
+/* =====================
+   2. USERS (BASE CLASS)
+   ===================== */
+-- Base class: Person
 CREATE TABLE users (
     id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(50) NOT NULL,
@@ -14,7 +24,43 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Passengers table (extends Person)
+/* =====================
+   3. EMPLOYEES (ABSTRACT)
+   ===================== */
+-- Implements Employable interface
+CREATE TABLE employees (
+    id INT PRIMARY KEY,
+    employee_id VARCHAR(10) UNIQUE NOT NULL,
+    salary DECIMAL(10,2) NOT NULL,
+    department VARCHAR(50) NOT NULL,
+    bank_account VARCHAR(20),
+    FOREIGN KEY (id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+/* =====================
+   4. PILOTS (FINAL CLASS)
+   ===================== */
+CREATE TABLE pilots (
+    id INT PRIMARY KEY,
+    license_number VARCHAR(12) UNIQUE NOT NULL,
+    flight_hours INT NOT NULL DEFAULT 0,
+    certifications TEXT,
+    FOREIGN KEY (id) REFERENCES employees(id) ON DELETE CASCADE
+);
+
+/* =====================
+   5. CREW MEMBERS
+   ===================== */
+CREATE TABLE crew_members (
+    id INT PRIMARY KEY,
+    position VARCHAR(50) NOT NULL,
+    languages_spoken TEXT,
+    FOREIGN KEY (id) REFERENCES employees(id) ON DELETE CASCADE
+);
+
+/* =====================
+   6. PASSENGERS
+   ===================== */
 CREATE TABLE passengers (
     id INT PRIMARY KEY,
     passport_number VARCHAR(9) UNIQUE NOT NULL,
@@ -22,34 +68,9 @@ CREATE TABLE passengers (
     FOREIGN KEY (id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Employees table (implements Employable interface)
-CREATE TABLE employees (
-    id INT PRIMARY KEY,
-    employee_id VARCHAR(10) UNIQUE NOT NULL,
-    salary DECIMAL(10, 2) NOT NULL,
-    department VARCHAR(50) NOT NULL,
-    bank_account VARCHAR(20),
-    FOREIGN KEY (id) REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Pilots table (extends Person, implements Employable, FINAL class)
-CREATE TABLE pilots (
-    id INT PRIMARY KEY,
-    license_number VARCHAR(12) UNIQUE NOT NULL,
-    flight_hours INT NOT NULL DEFAULT 0,
-    certifications TEXT, -- JSON array or comma-separated
-    FOREIGN KEY (id) REFERENCES employees(id) ON DELETE CASCADE
-);
-
--- Crew Members table (extends Person, implements Employable)
-CREATE TABLE crew_members (
-    id INT PRIMARY KEY,
-    position VARCHAR(50) NOT NULL,
-    languages_spoken TEXT, -- JSON array or comma-separated
-    FOREIGN KEY (id) REFERENCES employees(id) ON DELETE CASCADE
-);
-
--- Aircraft table
+/* =====================
+   7. AIRCRAFT
+   ===================== */
 CREATE TABLE aircraft (
     id INT PRIMARY KEY AUTO_INCREMENT,
     registration_number VARCHAR(10) UNIQUE NOT NULL,
@@ -60,7 +81,9 @@ CREATE TABLE aircraft (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Flights table
+/* =====================
+   8. FLIGHTS
+   ===================== */
 CREATE TABLE flights (
     id INT PRIMARY KEY AUTO_INCREMENT,
     flight_number VARCHAR(10) UNIQUE NOT NULL,
@@ -70,15 +93,27 @@ CREATE TABLE flights (
     arrival_time TIME NOT NULL,
     flight_date DATE NOT NULL,
     aircraft_id INT,
-    pilot_id INT,
-    status ENUM('Scheduled', 'Boarding', 'In Flight', 'Landed', 'Cancelled') DEFAULT 'Scheduled',
+    status ENUM('Scheduled','Boarding','In Flight','Landed','Cancelled')
+           DEFAULT 'Scheduled',
     available_seats INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (aircraft_id) REFERENCES aircraft(id) ON DELETE SET NULL,
-    FOREIGN KEY (pilot_id) REFERENCES pilots(id) ON DELETE SET NULL
+    FOREIGN KEY (aircraft_id) REFERENCES aircraft(id) ON DELETE SET NULL
 );
 
--- Flight Crew Assignment (many-to-many)
+/* =====================
+   9. FLIGHT ↔ PILOTS
+   ===================== */
+-- Supports ONE pilot per flight
+CREATE TABLE flight_pilots (
+    flight_id INT PRIMARY KEY,
+    pilot_id INT NOT NULL,
+    FOREIGN KEY (flight_id) REFERENCES flights(id) ON DELETE CASCADE,
+    FOREIGN KEY (pilot_id) REFERENCES pilots(id) ON DELETE CASCADE
+);
+
+/* =====================
+   10. FLIGHT ↔ CREW (MANY TO MANY)
+   ===================== */
 CREATE TABLE flight_crew (
     flight_id INT,
     crew_member_id INT,
@@ -87,65 +122,81 @@ CREATE TABLE flight_crew (
     FOREIGN KEY (crew_member_id) REFERENCES crew_members(id) ON DELETE CASCADE
 );
 
--- Bookings table (uses BOUNDED GENERICS concept - T extends Person)
+/* =====================
+   11. BOOKINGS
+   ===================== */
+-- Bounded Generics: T extends Person
 CREATE TABLE bookings (
     id INT PRIMARY KEY AUTO_INCREMENT,
     booking_id VARCHAR(15) UNIQUE NOT NULL,
     user_id INT NOT NULL,
     flight_id INT NOT NULL,
-    seat_number VARCHAR(3),
-    price DECIMAL(10, 2) NOT NULL,
+    seat_number VARCHAR(20),
+    price DECIMAL(10,2) NOT NULL,
     booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (flight_id) REFERENCES flights(id) ON DELETE CASCADE
 );
 
--- Paychecks table (for generating employee paychecks)
+/* =====================
+   12. PAYCHECKS
+   ===================== */
 CREATE TABLE paychecks (
     id INT PRIMARY KEY AUTO_INCREMENT,
     employee_id INT NOT NULL,
     pay_period_start DATE NOT NULL,
     pay_period_end DATE NOT NULL,
-    amount DECIMAL(10, 2) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
     generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     file_path VARCHAR(255),
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 );
 
--- Insert default admin user (password: admin123)
-INSERT INTO users (name, email, password, phone, role) VALUES
-('Admin User', 'admin@airline.com', 'admin123', '1234567890', 'ADMIN');
+/* =====================================================
+   13. SAMPLE DATA
+   ===================================================== */
 
--- Sample data for testing
--- Insert sample aircraft
+/* --- Admin --- */
+INSERT INTO users (name, email, password, phone, role)
+VALUES ('Admin User','admin@airline.com','admin123','1234567890','ADMIN');
+
+/* --- Aircraft --- */
 INSERT INTO aircraft (registration_number, model, manufacturer, capacity, range_km) VALUES
-('N12345', '737-800', 'Boeing', 189, 5765),
-('N67890', 'A320', 'Airbus', 180, 6100),
-('N11111', 'E190', 'Embraer', 100, 4537);
+('N12345','737-800','Boeing',189,5765),
+('N67890','A320','Airbus',180,6100),
+('N11111','E190','Embraer',100,4537);
 
--- Sample pilot
-INSERT INTO users (name, email, password, phone, role) VALUES
-('John Smith', 'pilot@airline.com', 'pilot123', '5551234567', 'PILOT');
+/* --- Pilot --- */
+INSERT INTO users (name,email,password,phone,role)
+VALUES ('John Smith','pilot@airline.com','pilot123','5551234567','PILOT');
 
-INSERT INTO employees (id, employee_id, salary, department, bank_account) VALUES
-(LAST_INSERT_ID(), 'EMP001', 85000.00, 'Flight Operations', 'ACC-1001-5678');
+INSERT INTO employees VALUES
+(LAST_INSERT_ID(),'EMP001',85000,'Flight Operations','ACC-1001');
 
-INSERT INTO pilots (id, license_number, flight_hours, certifications) VALUES
-(LAST_INSERT_ID(), 'LIC-123456', 5000, 'Boeing 737,Airbus A320');
+INSERT INTO pilots VALUES
+(LAST_INSERT_ID(),'LIC-123456',5000,'Boeing 737, Airbus A320');
 
--- Sample crew member
-INSERT INTO users (name, email, password, phone, role) VALUES
-('Sarah Johnson', 'crew@airline.com', 'crew123', '5559876543', 'CREW');
+/* --- Crew --- */
+INSERT INTO users (name,email,password,phone,role)
+VALUES ('Sarah Johnson','crew@airline.com','crew123','5559876543','CREW');
 
-INSERT INTO employees (id, employee_id, salary, department, bank_account) VALUES
-(LAST_INSERT_ID(), 'EMP002', 45000.00, 'Cabin Crew', 'ACC-2001-9876');
+INSERT INTO employees VALUES
+(LAST_INSERT_ID(),'EMP002',45000,'Cabin Crew','ACC-2002');
 
-INSERT INTO crew_members (id, position, languages_spoken) VALUES
-(LAST_INSERT_ID(), 'Flight Attendant', 'English,Spanish,French');
+INSERT INTO crew_members VALUES
+(LAST_INSERT_ID(),'Flight Attendant','English,Spanish');
 
--- Sample passenger
-INSERT INTO users (name, email, password, phone, role) VALUES
-('Michael Brown', 'passenger@airline.com', 'pass123', '5551112222', 'PASSENGER');
+/* --- Passenger --- */
+INSERT INTO users (name,email,password,phone,role)
+VALUES ('Ahmed','passenger@airline.com','pass123','5551112222','PASSENGER');
 
-INSERT INTO passengers (id, passport_number, nationality) VALUES
-(LAST_INSERT_ID(), 'AB123456C', 'United States');
+INSERT INTO passengers VALUES
+(LAST_INSERT_ID(),'AB123456','United States');
+
+
+-- use this if you want to delete or remove any person from database
+/*
+DELETE FROM users
+WHERE email = '';
+commit;
+*/
